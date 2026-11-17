@@ -2,6 +2,8 @@
 
 An interactive 3D globe that shows ten key climate-change indicators over time, from one data source (NASA GIBS), with no account, API key or backend.
 
+**Live demo: https://climate-change-indicators.vercel.app/**
+
 ## Purpose
 
 Climate data is usually scattered across portals with different formats and logins. This app puts ten indicators on one globe so you can play them through time, compare regions and read actual values:
