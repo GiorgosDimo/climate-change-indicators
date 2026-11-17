@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Box, Button, CssBaseline, FormControl, IconButton, InputLabel, MenuItem, Paper,
+  Alert, Box, CssBaseline, FormControl, IconButton, InputLabel, MenuItem, Paper,
   Select, Slider, Snackbar, SvgIcon, ThemeProvider, ToggleButton, ToggleButtonGroup, Typography, createTheme,
 } from '@mui/material';
 import {
@@ -14,6 +14,7 @@ import { loadColormap, loadFrame, type Colormap } from '@/lib/frames';
 import { ORIGINAL, PALETTES, legendStops, type Palette, type PaletteId } from '@/lib/palette';
 import { findNewEnds, loadState, saveState } from '@/lib/updates';
 import type { Hover } from '@/components/GlobeView';
+import TimeDock from '@/components/TimeDock';
 
 const GlobeView = dynamic(() => import('@/components/GlobeView'), { ssr: false });
 const theme = createTheme({ palette: { mode: 'dark' } });
@@ -185,36 +186,8 @@ export default function Home() {
           )}
         </Paper>
 
-        {/* Bottom dock: legend, time slider, play and speed. Sliders flex so they fit a phone. */}
-        <Paper sx={{ position: 'absolute', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 1000, opacity: 0.95,
-          width: 'min(560px, calc(100vw - 16px))', boxSizing: 'border-box', px: 2, py: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {legend && (
-            <Box data-testid="legend">
-              <Box sx={{ height: 10, borderRadius: 1, background: legend.bg }} />
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                <Typography variant="caption" noWrap data-testid="legend-min">{legend.min}</Typography>
-                <Typography variant="caption" noWrap data-testid="legend-max">{legend.max}</Typography>
-              </Box>
-            </Box>
-          )}
-          {dates.length === 0 ? (
-            <Typography color="error" variant="body2">No frames in this period.</Typography>
-          ) : (
-            <>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography data-testid="frame-date" sx={{ minWidth: 88, fontVariantNumeric: 'tabular-nums' }}>{label}</Typography>
-                <Slider size="small" sx={{ flex: 1, minWidth: 0 }} min={0} max={Math.max(dates.length - 1, 1)} value={safe} aria-label="Frame"
-                  onChange={(_, v) => { setPlaying(false); setIdx(v as number); }} />
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Button variant="contained" size="small" sx={{ minWidth: 88 }} onClick={() => setPlaying(p => !p)}>{playing ? 'Pause' : 'Play'}</Button>
-                <Slider size="small" sx={{ flex: 1, minWidth: 0 }} min={1} max={10} step={1} value={fps} aria-label="Speed"
-                  onChange={(_, v) => setFps(v as number)} />
-                <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>{fps} fps</Typography>
-              </Box>
-            </>
-          )}
-        </Paper>
+        <TimeDock legend={legend} label={label} frames={dates.length} index={safe} playing={playing} fps={fps}
+          onSeek={i => { setPlaying(false); setIdx(i); }} onPlay={() => setPlaying(p => !p)} onFps={setFps} />
 
         <Snackbar open={!!snack} autoHideDuration={8000} onClose={() => setSnack(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
           <Alert severity="info" onClose={() => setSnack(null)}>{snack}</Alert>
