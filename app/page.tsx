@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Box, CssBaseline, FormControl, IconButton, InputLabel, MenuItem, Paper,
   Select, Slider, Snackbar, SvgIcon, ThemeProvider, ToggleButton, ToggleButtonGroup, Typography, createTheme,
@@ -28,9 +28,10 @@ export default function Home() {
   const [mode, setMode] = useState<Mode>('month');
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [fps, setFps] = useState(1);
+  const [fps, setFps] = useState(3);
   const [hover, setHover] = useState<Hover | null>(null);
   const [palettes, setPalettes] = useState<Record<string, Palette>>({}); // chosen colours, per indicator
+  const menuRef = useRef<HTMLDivElement>(null);
   const [cm, setCm] = useState<Colormap | null>(null);
 
   // A newer-data check can push an indicator's last month forward.
@@ -95,6 +96,17 @@ export default function Home() {
     });
   }, []);
 
+  // A menu taller than half the screen hides the globe: tapping anywhere outside it collapses it.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      const t = e.target as Element, el = menuRef.current;
+      if (el && el.offsetHeight > window.innerHeight / 2 && !el.contains(t) && !t.closest('[role="presentation"]')) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+
   const setPalette = (p: Partial<Palette>) => setPalettes(s => ({ ...s, [ind.id]: { ...palette, ...p } }));
 
   const label = dates[safe] ? fmtFor(dates[safe], m) : '';
@@ -121,7 +133,7 @@ export default function Home() {
           </Paper>
         )}
 
-        <Paper sx={{ position: 'absolute', top: 8, left: 8, right: { xs: 8, sm: 'auto' }, width: { sm: 380 }, zIndex: 1000,
+        <Paper ref={menuRef} sx={{ position: 'absolute', top: 8, left: 8, right: { xs: 8, sm: 'auto' }, width: { sm: 380 }, zIndex: 1000,
           opacity: 0.95, maxHeight: { xs: 'calc(100dvh - 320px)', sm: 'calc(100dvh - 210px)' }, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
             <IconButton aria-label="Toggle menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
@@ -140,7 +152,9 @@ export default function Home() {
           </Box>
 
           {open && (
-            <Box sx={{ p: 2, pt: 0.5, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ p: 2, pt: 1.5, overflowY: 'scroll', display: 'flex', flexDirection: 'column', gap: 1.5,
+              // always-visible scrollbar: phones hide overlay scrollbars, which hides that there is more below
+              '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: 'text.disabled', borderRadius: 3 } }}>
               <FormControl size="small" fullWidth>
                 <InputLabel id="ind-label">Climate indicator</InputLabel>
                 <Select labelId="ind-label" label="Climate indicator" value={indId} onChange={e => setIndId(e.target.value)}>
@@ -152,6 +166,7 @@ export default function Home() {
                 <Typography variant="body2">{ind.about}</Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}><b>How to read it:</b> {ind.howto}</Typography>
                 <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1, fontStyle: 'italic' }}>{ind.note}</Typography>
+                <Typography variant="body2" color="primary" sx={{ mt: 1 }}>Tip: press Play below to watch how this indicator changes over time.</Typography>
               </Box>
 
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>

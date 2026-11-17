@@ -128,7 +128,12 @@ describe('time dock', () => {
     await user.click(screen.getByRole('button', { name: 'Toggle menu' })); // menu closed
     expect(screen.getByRole('slider', { name: 'Frame' })).toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Speed' })).toBeInTheDocument();
-    expect(screen.getByRole('slider', { name: 'Speed' })).toHaveValue('1'); // 1 fps default
+    expect(screen.getByRole('slider', { name: 'Speed' })).toHaveValue('3'); // 3 fps default
+  });
+
+  it('suggests pressing play under the description', () => {
+    render(<Home />);
+    expect(screen.getByText(/press Play below/)).toBeInTheDocument();
   });
 
   it('play toggles to pause', async () => {
