@@ -135,8 +135,8 @@ export default function Home() {
 
         <Paper ref={menuRef} sx={{ position: 'absolute', top: 8, left: 8, right: { xs: 8, sm: 'auto' }, width: { sm: 380 }, zIndex: 1000,
           opacity: 0.95, maxHeight: { xs: 'calc(100dvh - 320px)', sm: 'calc(100dvh - 210px)' }, display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
-            <IconButton aria-label="Toggle menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+          <Box onClick={() => setOpen(o => !o)} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, cursor: 'pointer' }}>
+            <IconButton aria-label="Toggle menu" aria-expanded={open}>
               <SvgIcon><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" /></SvgIcon>
             </IconButton>
             <Box sx={{ minWidth: 0 }}>
@@ -166,7 +166,6 @@ export default function Home() {
                 <Typography variant="body2">{ind.about}</Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}><b>How to read it:</b> {ind.howto}</Typography>
                 <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1, fontStyle: 'italic' }}>{ind.note}</Typography>
-                <Typography variant="body2" color="primary" sx={{ mt: 1 }}>Tip: press Play below to watch how this indicator changes over time.</Typography>
               </Box>
 
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -200,6 +199,8 @@ export default function Home() {
               <Typography variant="caption" color="text.disabled">Imagery: NASA GIBS</Typography>
             </Box>
           )}
+          {/* outside the scrolling area so it is always in view */}
+          {open && <Typography variant="body2" color="primary" sx={{ px: 2, py: 1 }}>Tip: press Play below to watch how this indicator changes over time.</Typography>}
         </Paper>
 
         <TimeDock legend={legend} label={label} frames={dates.length} index={safe} playing={playing} fps={fps}

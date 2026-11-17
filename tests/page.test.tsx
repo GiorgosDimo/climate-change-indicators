@@ -61,6 +61,16 @@ describe('title, description, menu', () => {
     expect(screen.getByText(/How to read it/)).toBeInTheDocument();
   });
 
+  it('clicking the title toggles the menu, and the play tip stays outside the scroll area', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    expect(screen.getByText(/press Play below/).closest('[class*="MuiBox"][style], div')).not.toBe(screen.getByText(/How to read it/).parentElement);
+    await user.click(screen.getByRole('heading', { name: 'Climate Change Indicators' }));
+    expect(screen.queryByText(/How to read it/)).toBeNull();
+    await user.click(screen.getByRole('heading', { name: 'Climate Change Indicators' }));
+    expect(screen.getByText(/How to read it/)).toBeInTheDocument();
+  });
+
   it('switching indicator swaps the description, layer and picker legend', async () => {
     const user = userEvent.setup();
     render(<Home />);
