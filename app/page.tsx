@@ -98,7 +98,8 @@ export default function Home() {
   const setPalette = (p: Partial<Palette>) => setPalettes(s => ({ ...s, [ind.id]: { ...palette, ...p } }));
 
   const label = dates[safe] ? fmtFor(dates[safe], m) : '';
-  const tipLeft = hover && typeof window !== 'undefined' && hover.x > window.innerWidth - 230 ? hover.x - 200 : (hover?.x ?? 0) + 14;
+  // shortcut: tooltip width assumed <= 200px for clamping, measure it if values get longer
+  const tipLeft = hover ? Math.max(8, Math.min(hover.x + 14, window.innerWidth - 208)) : 0;
   const bins = cm?.bins ?? [];
   const legend = cm && bins.length > 1 ? {
     bg: `linear-gradient(to right, ${legendStops(cm, palette).join(',')})`,
