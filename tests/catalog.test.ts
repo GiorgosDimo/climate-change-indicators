@@ -18,7 +18,8 @@ describe('parseCatalog', () => {
   it('accepts the documented example', () => {
     const c = parseCatalog(example);
     expect(c.title).toBe('My Spatial Data');
-    expect(c.indicators.map(i => i.id)).toEqual(['temp-wms', 'images']);
+    expect(c.indicators.map(i => i.id)).toEqual(['temp-wms', 'images', 'geotiff']);
+    expect(c.indicators[2].geotiff).toBe(true);
   });
 
   it('fills defaults and keeps the optional fields it knows', () => {
