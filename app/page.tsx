@@ -192,14 +192,6 @@ export default function Home() {
               ))}
             </div>
 
-            <label className="check">
-              <input type="checkbox" checked={values} onChange={e => toggleValues(e.target.checked)} />
-              <span>
-                <b>Read values</b>
-                <span className="cap muted">Click or tap the globe to read a value and plant a flag. Then press Play to graph how that spot changes.</span>
-              </span>
-            </label>
-
             <div className="seg" role="group" aria-label="Time step">
               {MODES.map(([k, text]) => (
                 <button key={k} aria-pressed={m === k} disabled={k === 'week' && !ind.weekly} onClick={() => setMode(k)}>{text}</button>
@@ -222,6 +214,7 @@ export default function Home() {
       </div>
 
       <TimeDock legend={legend} label={label} frames={dates.length} index={safe} playing={playing} fps={fps}
+        values={values} onValues={toggleValues}
         onSeek={i => { setPlaying(false); setIdx(i); }} onPlay={() => setPlaying(p => !p)} onFps={setFps}
         chart={pin && (
           <TrendChart title={`${pin[0].toFixed(2)}°, ${pin[1].toFixed(2)}°`} points={pts} current={dates[safe]}

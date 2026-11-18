@@ -257,7 +257,7 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     if (!pin) { if (flag.current) flag.current.show = false; } else {
       const position = C.Cartesian3.fromDegrees(pin[1], pin[0]);
       if (flag.current) { flag.current.position = position; flag.current.show = true; } else {
-        flag.current = v.entities.add({ position, billboard: { image: FLAG, width: 28, height: 36, verticalOrigin: C.VerticalOrigin.BOTTOM } });
+        flag.current = v.entities.add({ position, billboard: { image: FLAG, width: 34, height: 44, verticalOrigin: C.VerticalOrigin.BOTTOM } });
       }
       api.current.refresh();
     }
@@ -296,12 +296,12 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   );
 }
 
-/** Red flag as SVG (drawn at 3x the display size so it stays sharp); the pole's foot is the bottom-centre. */
+/** Black flag as SVG, drawn at 4x its display size so it stays sharp; the pole's foot is the bottom-centre. */
 const FLAG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="84" height="108" viewBox="0 0 28 36">' +
-  '<ellipse cx="14" cy="34.6" rx="4.5" ry="1.4" fill="#000" opacity=".35"/>' +
-  '<rect x="13" y="3" width="2" height="31.6" rx="1" fill="#fff" stroke="#222" stroke-width=".6"/>' +
-  '<circle cx="14" cy="3" r="2" fill="#fff" stroke="#222" stroke-width=".6"/>' +
-  '<path d="M15 4.5C19 2.2 22 6.8 27 4.5V14.5C22 16.8 19 12.2 15 14.5Z" fill="#e53935" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg>');
+  '<svg xmlns="http://www.w3.org/2000/svg" width="136" height="176" viewBox="0 0 34 44">' +
+  '<ellipse cx="17" cy="42.4" rx="5.5" ry="1.6" fill="#000" opacity=".35"/>' +
+  '<rect x="15.8" y="3.5" width="2.4" height="38.5" rx="1.2" fill="#111" stroke="#fff" stroke-width="1"/>' +
+  '<circle cx="17" cy="3.6" r="2.6" fill="#111" stroke="#fff" stroke-width="1"/>' +
+  '<path d="M18.4 5.5C23.4 2.6 27 8.4 33 5.5V18C27 20.9 23.4 15.1 18.4 18Z" fill="#111" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>');
 
 const deg180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;

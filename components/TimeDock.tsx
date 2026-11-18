@@ -5,22 +5,29 @@ interface Props {
   legend: LegendData | null; label: string; frames: number; index: number; playing: boolean; fps: number;
   onSeek: (i: number) => void; onPlay: () => void; onFps: (n: number) => void;
   chart?: ReactNode; // optional trend graph shown above the legend
+  values: boolean; onValues: (on: boolean) => void;
 }
 
 /** Bottom dock: trend graph, legend, time slider, play and speed. Sliders flex so they fit a phone. */
-export default function TimeDock({ legend, label, frames, index, playing, fps, onSeek, onPlay, onFps, chart }: Props) {
+export default function TimeDock({ legend, label, frames, index, playing, fps, onSeek, onPlay, onFps, chart, values, onValues }: Props) {
   return (
     <div className="panel dock">
       {chart}
-      {legend && (
-        <div data-testid="legend">
-          <div className="legend-bar" style={{ background: legend.bg }} />
-          <div className="legend-ends">
-            <span className="ellip" data-testid="legend-min">{legend.min}</span>
-            <span className="ellip" data-testid="legend-max">{legend.max}</span>
+      <div className="legend-row">
+        {legend && (
+          <div data-testid="legend" className="legend">
+            <div className="legend-bar" style={{ background: legend.bg }} />
+            <div className="legend-ends">
+              <span className="ellip" data-testid="legend-min">{legend.min}</span>
+              <span className="ellip" data-testid="legend-max">{legend.max}</span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        <button className="read" aria-pressed={values} onClick={() => onValues(!values)}>
+          <b>Read values</b>
+          <span>{values ? 'tap globe = flag' : 'off: panning only'}</span>
+        </button>
+      </div>
       {frames === 0 ? (
         <p className="err">No frames in this period.</p>
       ) : (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPoint, pointsOf } from '@/lib/series';
+import { addPoint, linearFit, pointsOf } from '@/lib/series';
 
 describe('series', () => {
   it('keeps one value per frame date and sorts by date', () => {
@@ -16,5 +16,18 @@ describe('series', () => {
   it('returns the same object when nothing changed', () => {
     const s = addPoint({}, 'a', '2020-01-01', 1);
     expect(addPoint(s, 'a', '2020-01-01', 1)).toBe(s);
+  });
+
+  describe('linearFit', () => {
+    const p = (date: string, value: number) => ({ date, value });
+    it('fits a rising line', () => {
+      const f = linearFit([p('2000-01-01', 1), p('2001-01-01', 2), p('2002-01-01', 3)])!;
+      expect(f(Date.parse('2001-01-01'))).toBeCloseTo(2, 1);
+      expect(f(Date.parse('2002-01-01'))).toBeGreaterThan(f(Date.parse('2000-01-01')));
+    });
+    it('has no line for fewer than two points or a single date', () => {
+      expect(linearFit([p('2000-01-01', 1)])).toBeNull();
+      expect(linearFit([p('2000-01-01', 1), p('2000-01-01', 2)])).toBeNull();
+    });
   });
 });

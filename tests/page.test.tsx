@@ -191,12 +191,15 @@ describe('flag and value trend graph', () => {
     expect(screen.queryByTestId('trend-hint')).toBeNull();
   });
 
-  it('the Read values option explains itself, and turning it off removes the flag', async () => {
+  it('the Read values button sits with the legend; turning it off removes the flag', async () => {
     const user = userEvent.setup();
     render(<Home />);
-    expect(screen.getByText(/plant a flag/)).toBeInTheDocument();
+    const btn = screen.getByRole('button', { name: /Read values/ });
+    expect(within((await screen.findByTestId('legend')).parentElement!).getByRole('button', { name: /Read values/ })).toBe(btn);
+    expect(btn).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: 'click globe' }));
-    await user.click(screen.getByRole('checkbox', { name: /Read values/ }));
+    await user.click(btn);
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('globe')).toHaveAttribute('data-values', 'false');
     expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '');
   });
