@@ -35,13 +35,13 @@ describe('saved state', () => {
 describe('findNewEnds', () => {
   const sst = INDICATORS.find(i => i.id === 'sst')!; // ends 2026-04-01
   it('walks forward month by month while data exists', async () => {
-    const has = vi.fn(async (_layer: string, d: string) => d <= '2026-06-01');
+    const has = vi.fn(async (_v: unknown, d: string) => d <= '2026-06-01');
     const found = await findNewEnds([sst], {}, has);
     expect(found).toEqual({ sst: '2026-06-01' });
-    expect(has).toHaveBeenCalledWith(sst.layer, '2026-05-01');
+    expect(has).toHaveBeenCalledWith(sst, '2026-05-01');
   });
   it('continues from a stored end rather than the built-in one', async () => {
-    const has = vi.fn(async (_l: string, d: string) => d <= '2026-07-01');
+    const has = vi.fn(async (_v: unknown, d: string) => d <= '2026-07-01');
     expect(await findNewEnds([sst], { sst: '2026-06-01' }, has)).toEqual({ sst: '2026-07-01' });
   });
   it('reports nothing when there is no newer month', async () => {

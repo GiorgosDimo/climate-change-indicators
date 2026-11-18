@@ -48,10 +48,14 @@ export function parseColormap(xml: string): Colormap {
   return { units: cm.getAttribute('units') ?? '', bins };
 }
 
+/** Make a legend available under a name (used for legends written inline in a catalog). */
+export const registerColormap = (name: string, cm: Colormap) => { maps.set(name, Promise.resolve(cm)); };
+
+/** `name` is a GIBS colormap name, or the URL of a GIBS-format colormap XML. */
 export function loadColormap(name: string): Promise<Colormap> {
   let p = maps.get(name);
   if (!p) {
-    p = fetch(`https://gibs.earthdata.nasa.gov/colormaps/v1.3/${name}.xml`)
+    p = fetch(/^https?:\/\//.test(name) ? name : `https://gibs.earthdata.nasa.gov/colormaps/v1.3/${name}.xml`)
       .then(r => { if (!r.ok) throw new Error(`colormap ${name}: ${r.status}`); return r.text(); })
       .then(parseColormap);
     p.catch(() => maps.delete(name));

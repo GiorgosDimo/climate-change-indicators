@@ -3,8 +3,9 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  INDICATORS, fmtFor, frameUrl, framesFor, monthList, variantFor, type BBox, type Mode,
+  fmtFor, frameUrl, framesFor, hasDetail, monthList, variantFor, type BBox, type Mode,
 } from '@/lib/indicators';
+import { DEFAULT_CATALOG, loadCatalog, type Catalog } from '@/lib/catalog';
 import { formatValue } from '@/lib/format';
 import { loadColormap, loadFrame, type Colormap } from '@/lib/frames';
 import { ORIGINAL, PALETTES, legendStops, type Palette, type PaletteId } from '@/lib/palette';
@@ -20,7 +21,8 @@ const AHEAD = 6;      // frames fetched in advance while scrubbing/playing
 const MODES: [Mode, string][] = [['week', 'Weekly'], ['month', 'Monthly'], ['year', 'Yearly']];
 
 export default function Home() {
-  const [indId, setIndId] = useState(INDICATORS[0].id);
+  const [catalog, setCatalog] = useState<Catalog>(DEFAULT_CATALOG);
+  const [indId, setIndId] = useState(DEFAULT_CATALOG.indicators[0].id);
   const [ends, setEnds] = useState<Record<string, string>>({});
   const [snack, setSnack] = useState<string | null>(null);
   const [open, setOpen] = useState(true);
@@ -39,12 +41,12 @@ export default function Home() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // A newer-data check can push an indicator's last month forward.
-  const base = INDICATORS.find(i => i.id === indId)!;
+  const base = catalog.indicators.find(i => i.id === indId) ?? catalog.indicators[0];
   const ind = useMemo(() => {
-    const end = ends[base.id] ?? base.end;
+    const end = (catalog === DEFAULT_CATALOG && ends[base.id]) || base.end;
     const weekly = base.weekly && { ...base.weekly, end: base.weekly.end > end ? base.weekly.end : end };
     return { ...base, end, weekly };
-  }, [base, ends]);
+  }, [base, ends, catalog]);
   const m: Mode = mode === 'week' && !ind.weekly ? 'month' : mode;
   const variant = variantFor(ind, m);
   const palette = palettes[ind.id] ?? ORIGINAL;
@@ -54,11 +56,11 @@ export default function Home() {
   useEffect(() => { setRange([0, months.length - 1]); }, [months]);
 
   const dates = useMemo(() => framesFor(ind, months.slice(range[0], range[1] + 1), m), [ind, months, range, m]);
-  const urls = useMemo(() => dates.map(d => frameUrl(variant.layer, d, ind.res)), [dates, variant, ind.res]);
+  const urls = useMemo(() => dates.map(d => frameUrl(variant, d, ind.res)), [dates, variant, ind.res]);
   const safe = Math.min(idx, Math.max(dates.length - 1, 0));
   const format = useCallback((v: number, u: string) => formatValue(variant, v, u), [variant]);
   const detailUrl = useCallback((box: BBox, w: number, h: number) =>
-    dates[safe] ? frameUrl(variant.layer, dates[safe], w, box, h) : null, [dates, safe, variant]);
+    dates[safe] && hasDetail(variant) ? frameUrl(variant, dates[safe], w, box, h) : null, [dates, safe, variant]);
 
   useEffect(() => { setIdx(0); setPlaying(false); }, [dates]);
 
@@ -86,12 +88,23 @@ export default function Home() {
     return () => { dead = true; clearTimeout(t); };
   }, [playing, safe, fps, urls]);
 
-  // Every time the app opens, look for months published since the last visit.
+  // ?catalog=<url> swaps the built-in GIBS catalog for one loaded from a JSON file.
   useEffect(() => {
+    const url = new URLSearchParams(window.location.search).get('catalog');
+    if (!url) return;
+    loadCatalog(url)
+      .then(c => { setCatalog(c); setIndId(c.indicators[0].id); })
+      .catch(e => setSnack(`Could not load the catalog: ${e.message}`));
+  }, []);
+  useEffect(() => { document.title = catalog.title; }, [catalog]);
+
+  // Every time the app opens, look for months published since the last visit (built-in catalog only).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has('catalog')) return;
     const known = loadState().ends;
     setEnds(known);
-    findNewEnds(INDICATORS, known).then(found => {
-      const names = Object.keys(found).map(id => INDICATORS.find(i => i.id === id)!.name);
+    findNewEnds(DEFAULT_CATALOG.indicators, known).then(found => {
+      const names = Object.keys(found).map(id => DEFAULT_CATALOG.indicators.find(i => i.id === id)!.name);
       if (!names.length) return;
       const next = { ...known, ...found };
       saveState({ ends: next });
@@ -158,7 +171,7 @@ export default function Home() {
             <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" /></svg>
           </button>
           <div>
-            <h1>Climate Change Indicators</h1>
+            <h1>{catalog.title}</h1>
             {!open && (
               <div className="cap muted ellip" data-testid="collapsed-name">{ind.name}{label ? ` · ${label}` : ''}</div>
             )}
@@ -170,14 +183,14 @@ export default function Home() {
             <label className="field">
               <span>Climate indicator</span>
               <select value={indId} onChange={e => setIndId(e.target.value)}>
-                {INDICATORS.map((i, n) => <option key={i.id} value={i.id}>{n + 1}. {i.name}</option>)}
+                {catalog.indicators.map((i, n) => <option key={i.id} value={i.id}>{n + 1}. {i.name}</option>)}
               </select>
             </label>
 
             <div>
-              <p>{ind.about}</p>
-              <p style={{ marginTop: 8 }}><b>How to read it:</b> {ind.howto}</p>
-              <p className="cap muted" style={{ marginTop: 8, fontStyle: 'italic' }}>{ind.note}</p>
+              {ind.about && <p>{ind.about}</p>}
+              {ind.howto && <p style={{ marginTop: 8 }}><b>How to read it:</b> {ind.howto}</p>}
+              {ind.note && <p className="cap muted" style={{ marginTop: 8, fontStyle: 'italic' }}>{ind.note}</p>}
             </div>
 
             <div className="row">
@@ -201,7 +214,7 @@ export default function Home() {
                 <span>{fmtFor(months[months.length - 1], m)}</span>
               </div>
             </div>
-            <span className="cap muted">Imagery: NASA GIBS</span>
+            {catalog.credit && <span className="cap muted">{catalog.credit}</span>}
           </div>
         )}
         {/* these two sit outside the scrolling area so they are always in view */}

@@ -1,5 +1,5 @@
 // Checks for newer data every time the app opens (a web page cannot run in the background).
-import { addMonth, frameUrl, type Indicator } from './indicators';
+import { addMonth, frameUrl, type Indicator, type Variant } from './indicators';
 
 const KEY = 'cig.updates';
 
@@ -20,8 +20,8 @@ export function hasData(rgba: ArrayLike<number>): boolean {
   return n / (rgba.length / 4) > 0.02;
 }
 
-async function probe(layer: string, date: string): Promise<boolean> {
-  const r = await fetch(frameUrl(layer, date, 180));
+async function probe(v: Variant, date: string): Promise<boolean> {
+  const r = await fetch(frameUrl(v, date, 180));
   const blob = await r.blob();
   if (!r.ok || !blob.type.startsWith('image/')) return false;
   const bmp = await createImageBitmap(blob);
@@ -34,14 +34,14 @@ const MAX_MONTHS = 12; // shortcut: stops after a year of catch-up, the next loa
 
 /** New last month for every ongoing indicator that has published more data since `ends`. */
 export async function findNewEnds(
-  inds: Indicator[], ends: Record<string, string>, has: (layer: string, date: string) => Promise<boolean> = probe,
+  inds: Indicator[], ends: Record<string, string>, has: (v: Variant, date: string) => Promise<boolean> = probe,
 ): Promise<Record<string, string>> {
   const found: Record<string, string> = {};
   await Promise.all(inds.filter(i => i.ongoing).map(async i => {
     let end = ends[i.id] ?? i.end;
     for (let n = 0; n < MAX_MONTHS; n++) {
       const next = addMonth(end);
-      if (!(await has(i.layer, next).catch(() => false))) break;
+      if (!(await has(i, next).catch(() => false))) break;
       end = next;
     }
     if (end !== (ends[i.id] ?? i.end)) found[i.id] = end;

@@ -1,4 +1,5 @@
-// Ten climate-change indicators served by NASA GIBS as one whole-globe image per date (WMS).
+// The built-in catalog: ten climate-change indicators served by NASA GIBS as one whole-globe image per date (WMS).
+// Other sources are added through lib/catalog.ts (a WMS endpoint of your own, or an image URL template).
 // Layer IDs, ranges and colormap names verified against the GIBS capabilities (2026-11-17).
 // GIBS does not snap dates: a date with no data returns a blank image, so frames must be
 // requested on each layer's real cadence (everyDays) and gaps simply play as blank frames.
@@ -6,8 +7,10 @@
 export type Mode = 'week' | 'month' | 'year';
 
 export interface Variant {
-  layer: string;
-  colormap: string;    // GIBS colormap file name, used to turn pixel colour back into a value
+  layer: string;       // WMS layer name (for an image template: just a unique name)
+  wms?: string;        // WMS endpoint; GIBS when omitted
+  template?: string;   // instead of WMS: image URL with {date} (and optionally {width} {height} {bbox})
+  colormap: string;    // legend used to turn pixel colour back into a value: GIBS colormap name, URL of its XML, or a registered inline legend
   start: string;       // first date available
   end: string;         // last date available
   everyDays?: number;  // native cadence when it is not daily/monthly (anchor = start)
@@ -139,11 +142,23 @@ export function framesFor(ind: Indicator, months: string[], mode: Mode): string[
 
 export type BBox = [west: number, south: number, east: number, north: number];
 
-export const frameUrl = (layer: string, date: string, width: number, bbox: BBox = [-180, -90, 180, 90], height?: number) => {
+export const GIBS_WMS = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+type Source = Pick<Variant, 'layer' | 'wms' | 'template'>;
+
+/** A fixed image template always shows the whole globe, so it cannot supply a sharper image of the zoomed-in area. */
+export const hasDetail = (v: Source) => !v.template || v.template.includes('{bbox}');
+
+/** Image URL for one frame: a WMS GetMap (EPSG:4326, TIME=date) or the image template filled in. */
+export const frameUrl = (v: Source, date: string, width: number, bbox: BBox = [-180, -90, 180, 90], height?: number) => {
   const h = height ?? Math.round((width * (bbox[3] - bbox[1])) / (bbox[2] - bbox[0]));
-  return 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1' +
+  if (v.template) {
+    return v.template.replace(/\{date\}/g, date).replace(/\{width\}/g, String(width)).replace(/\{height\}/g, String(h))
+      .replace(/\{bbox\}/g, bbox.join(','));
+  }
+  const base = v.wms ?? GIBS_WMS;
+  return `${base}${base.includes('?') ? '&' : '?'}SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1` +
     `&SRS=EPSG:4326&BBOX=${bbox.join(',')}&WIDTH=${width}&HEIGHT=${h}&FORMAT=image/png&TRANSPARENT=TRUE&STYLES=` +
-    `&LAYERS=${layer}&TIME=${date}`;
+    `&LAYERS=${v.layer}&TIME=${date}`;
 };
 
 export const fmtDate = (iso: string) => iso.split('-').reverse().join('/'); // dd/mm/yyyy

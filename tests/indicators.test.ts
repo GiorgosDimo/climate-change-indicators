@@ -54,14 +54,14 @@ describe('framesFor', () => {
 
 describe('frameUrl', () => {
   it('builds a global WMS request', () => {
-    const u = frameUrl('LAYER_X', '2020-03-01', 720);
+    const u = frameUrl({ layer: 'LAYER_X' }, '2020-03-01', 720);
     expect(u).toContain('LAYERS=LAYER_X');
     expect(u).toContain('TIME=2020-03-01');
     expect(u).toContain('BBOX=-180,-90,180,90');
     expect(u).toContain('WIDTH=720&HEIGHT=360');
   });
   it('keeps a regional box\'s aspect ratio when no height is given', () => {
-    expect(frameUrl('L', '2020-01-01', 400, [0, 0, 40, 20])).toContain('WIDTH=400&HEIGHT=200');
+    expect(frameUrl({ layer: 'L' }, '2020-01-01', 400, [0, 0, 40, 20])).toContain('WIDTH=400&HEIGHT=200');
   });
 });
 

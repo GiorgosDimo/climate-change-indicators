@@ -59,13 +59,36 @@ Other scripts: `npm run build`, `npm start`, `npm test`, `npm run typecheck`.
 app/page.tsx              page state: indicator, mode, frames, playback, menu
 components/GlobeView.tsx  Cesium globe, layer swap, detail overlay, hover value
 components/TimeDock.tsx   legend, time slider, play and speed
-lib/indicators.ts         the ten indicators, GIBS layers, date and frame logic
+lib/indicators.ts         the ten built-in indicators, date and frame logic, frame URLs
+lib/catalog.ts            catalog format: checks and loads a catalog JSON file
 lib/frames.ts             frame cache, colour-map parsing, pixel decoding
 lib/palette.ts            palettes and client-side recolouring
 lib/format.ts             value formatting (°C / °F, units)
 lib/updates.ts            new-data check
 tests/                    unit and integration tests
 ```
+
+## Using your own data
+
+The list of datasets is a *catalog*. The built-in one is NASA GIBS, and any other can be loaded from a JSON file:
+
+```
+https://climate-change-indicators.vercel.app/?catalog=https://your.host/catalog.json
+```
+
+See [examples/catalog.example.json](examples/catalog.example.json). Each indicator needs a `start` and `end` (`YYYY-MM-DD`), a source and a legend:
+
+- **Source, either:**
+  - `layer` (plus optional `wms`, the endpoint URL): any WMS 1.1.1 server with a `TIME` dimension that can answer in EPSG:4326, one whole-globe image per date.
+  - `template`: an image URL with `{date}`, for example `https://host/frames/{date}.png`. `{width}`, `{height}` and `{bbox}` are filled in if present. Without `{bbox}` there is no extra detail when zooming.
+- **Legend, either:**
+  - `legend`: `{ "units": "°C", "stops": [{ "value": 0, "color": "#0000ff" }, ...] }`, smoothed between the stops.
+  - `colormap`: a GIBS colormap name, or the URL of a GIBS-format colormap XML.
+  
+  The legend colours must match the colours in the images, because values are read back from the pixel colour.
+- **Optional:** `name`, `res` (image width in px), `alpha`, `north`, `everyDays`, `unit`, `scale`, `weekly` (same fields, used in Weekly mode), `about`, `howto`, `note`.
+
+Frames are requested for the 1st of each month (or every `everyDays` days), so image names must follow that. Images must be served with CORS enabled, because the app reads their pixels. The GIBS new-data check is off for custom catalogs. Only open catalog links you trust: a catalog controls which images and text the page shows.
 
 ## Deploying
 

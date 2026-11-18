@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -280,5 +280,36 @@ describe('checking for new data', () => {
     render(<Home />);
     await waitFor(() => expect(screen.getAllByText('Oct 2026').length).toBeGreaterThan(0));
     expect(findNewEnds).toHaveBeenCalledWith(expect.anything(), { 'air-temp': '2026-10-01' });
+  });
+});
+
+describe('custom catalog (?catalog=<url>)', () => {
+  const CUSTOM = {
+    title: 'My Spatial Data', credit: 'Data: me',
+    indicators: [{ id: 'mine', name: 'My layer', template: 'https://h.org/{date}.png', layer: 'mine', start: '2010-01-01', end: '2012-12-01',
+      legend: { units: '°C', stops: [{ value: 0, color: '#000000' }, { value: 10, color: '#ffffff' }] }, about: 'About my data.' }],
+  };
+  const open = (url: string) => window.history.pushState({}, '', url);
+  afterEach(() => window.history.pushState({}, '', '/'));
+
+  it('loads the catalog: its title, layer, image template and legend replace the built-in ones', async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) =>
+      url.endsWith('catalog.json') ? new Response(JSON.stringify(CUSTOM)) : new Response('x', { headers: { 'content-type': 'image/png' } }));
+    open('/?catalog=https://h.org/catalog.json');
+    render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'My Spatial Data' })).toBeInTheDocument();
+    expect(screen.getByText('About my data.')).toBeInTheDocument();
+    expect(screen.getByText('Data: me')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('globe').getAttribute('data-src')).toBe('https://h.org/2010-01-01.png'));
+    expect(await screen.findByTestId('legend-max')).toHaveTextContent('10');
+    expect(findNewEnds).not.toHaveBeenCalled(); // the GIBS update check does not apply to other catalogs
+  });
+
+  it('says so when the catalog is invalid and keeps the built-in one', async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => new Response(JSON.stringify({ title: 'x' })));
+    open('/?catalog=https://h.org/bad.json');
+    render(<Home />);
+    expect(await screen.findByText(/Could not load the catalog: catalog: needs a "title"/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Climate Change Indicators' })).toBeInTheDocument();
   });
 });
