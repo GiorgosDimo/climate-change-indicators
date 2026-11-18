@@ -22,7 +22,7 @@ Each indicator has a description of what it is and how to read it.
 
 - **Time controls:** weekly, monthly or yearly frames, a period range slider, play/pause and 1–10 fps speed.
 - **Value picker:** hover or tap anywhere to read the value. It updates with every frame while the coordinates stay fixed. Temperatures show °C with °F in brackets.
-- **Trend graph:** rest the pointer on a spot (a flag marks the exact pixel) and play: once five frames have been seen there, a line graph of that spot's value over time appears and keeps growing. A "Show values" button turns reading off for plain panning.
+- **Trend graph:** click or tap the globe to plant a flag on that pixel, then press Play (or drag the time slider). Each frame adds a point, and after five a line graph of that spot over time appears and keeps growing. The "Read values" option in the menu turns this off for plain panning.
 - **Legend and colours:** a legend per layer, plus original, Viridis, blue-red, grayscale or custom two-colour palettes, applied in the browser.
 - **Detail on zoom:** zooming in loads a sharper image of the visible region.
 - **Polar tilt** for sea ice, zoom buttons, and a mobile-friendly collapsible menu.

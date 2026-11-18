@@ -9,15 +9,16 @@ vi.mock('next/dynamic', () => ({
     function GlobeStub(p: {
       src: string | null; colormap: string; north: boolean; alpha: number;
       palette: { id: string; low: string; high: string }; format: (v: number, u: string) => string;
-      values: boolean; onValues: (b: boolean) => void; marker: number[] | null; onHover: (h: unknown) => void;
+      values: boolean; pin: number[] | null; onPick: (c: [number, number]) => void;
+      onSample: (s: { num: number | null; src: string; cell: string }) => void;
     }) {
-      // Stand-in for hovering the fixed spot 10.25°, 20.25°: reports a new value for the frame being shown.
+      // Stand-ins for clicking the globe at 10.25°, 20.25° and for the globe reporting that pixel's value per frame.
       return (
         <div data-testid="globe" data-src={p.src ?? ''} data-colormap={p.colormap} data-north={String(p.north)}
           data-temp={p.format(300.15, 'K')} data-palette={p.palette.id} data-low={p.palette.low}
-          data-values={String(p.values)} data-marker={p.marker?.join(',') ?? ''}>
-          <button onClick={() => p.onHover({ x: 5, y: 5, lat: 10.2, lon: 20.2, value: 'v', num: 270 + n++, cell: [10.25, 20.25], src: p.src })}>hover</button>
-          <button onClick={() => p.onValues(!p.values)}>Show values</button>
+          data-values={String(p.values)} data-pin={p.pin?.join(',') ?? ''}>
+          <button onClick={() => p.onPick([10.25, 20.25])}>click globe</button>
+          <button onClick={() => p.onSample({ num: 270 + n++, src: p.src ?? '', cell: '10.25,20.25' })}>new frame value</button>
         </div>
       );
     },
@@ -161,42 +162,43 @@ describe('time dock', () => {
   });
 });
 
-describe('value trend graph', () => {
-  const hoverFrame = async (user: ReturnType<typeof userEvent.setup>, frame: number) => {
-    fireEvent.change(screen.getByRole('slider', { name: 'Frame' }), { target: { value: String(frame) } });
-    await user.click(screen.getByRole('button', { name: 'hover' }));
+describe('flag and value trend graph', () => {
+  const frame = async (user: ReturnType<typeof userEvent.setup>, i: number) => {
+    fireEvent.change(screen.getByRole('slider', { name: 'Frame' }), { target: { value: String(i) } });
+    await user.click(screen.getByRole('button', { name: 'new frame value' }));
   };
 
-  it('marks the pixel with a flag, then draws a graph once five frames were seen there', async () => {
+  it('clicking plants the flag and asks to press Play; the graph appears after five frames', async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.click(screen.getByRole('button', { name: 'hover' }));
-    expect(screen.getByTestId('globe')).toHaveAttribute('data-marker', '10.25,20.25');
-    expect(screen.queryByTestId('trend')).toBeNull();
-    // resting on the pixel is what starts collecting (first value arrives after the rest delay)
-    await new Promise(r => setTimeout(r, 600));
-    for (const f of [1, 2, 3, 4]) await hoverFrame(user, f);
-    expect(await screen.findByTestId('trend')).toHaveTextContent('10.25°, 20.25°');
+    expect(screen.queryByTestId('trend-hint')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'click globe' }));
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '10.25,20.25');
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('0 of 5 frames collected');
+    for (const i of [0, 1, 2]) await frame(user, i);
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('3 of 5');
+    for (const i of [3, 4]) await frame(user, i);
+    expect(screen.getByTestId('trend')).toHaveTextContent('10.25°, 20.25°');
+    expect(screen.queryByTestId('trend-hint')).toBeNull();
   });
 
-  it('can be dismissed', async () => {
+  it('closing removes the flag and the graph', async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.click(screen.getByRole('button', { name: 'hover' }));
-    await new Promise(r => setTimeout(r, 600));
-    for (const f of [1, 2, 3, 4]) await hoverFrame(user, f);
-    await user.click(await screen.findByRole('button', { name: 'Close graph' }));
-    expect(screen.queryByTestId('trend')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'click globe' }));
+    await user.click(screen.getByRole('button', { name: 'Close graph' }));
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '');
+    expect(screen.queryByTestId('trend-hint')).toBeNull();
   });
 
-  it('the Show values toggle turns reading off (hand cursor, no flag)', async () => {
+  it('the Read values option explains itself, and turning it off removes the flag', async () => {
     const user = userEvent.setup();
     render(<Home />);
-    expect(screen.getByTestId('globe')).toHaveAttribute('data-values', 'true');
-    await user.click(screen.getByRole('button', { name: 'hover' }));
-    await user.click(screen.getByRole('button', { name: 'Show values' }));
+    expect(screen.getByText(/plant a flag/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'click globe' }));
+    await user.click(screen.getByRole('checkbox', { name: /Read values/ }));
     expect(screen.getByTestId('globe')).toHaveAttribute('data-values', 'false');
-    expect(screen.getByTestId('globe')).toHaveAttribute('data-marker', '');
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '');
   });
 });
 

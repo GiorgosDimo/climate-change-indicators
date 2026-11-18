@@ -8,16 +8,15 @@ import {
 import { formatValue } from '@/lib/format';
 import { loadColormap, loadFrame, type Colormap } from '@/lib/frames';
 import { ORIGINAL, PALETTES, legendStops, type Palette, type PaletteId } from '@/lib/palette';
-import { MIN_POINTS, addPoint, pointsOf, type Series } from '@/lib/series';
+import { addPoint, pointsOf, type Series } from '@/lib/series';
 import { findNewEnds, loadState, saveState } from '@/lib/updates';
-import type { Hover } from '@/components/GlobeView';
+import type { Hover, Sample } from '@/components/GlobeView';
 import RangeSlider from '@/components/RangeSlider';
 import TimeDock from '@/components/TimeDock';
 import TrendChart from '@/components/TrendChart';
 
 const GlobeView = dynamic(() => import('@/components/GlobeView'), { ssr: false });
 const AHEAD = 6;      // frames fetched in advance while scrubbing/playing
-const REST_MS = 500;  // pointer must rest this long on a pixel before its values are collected
 const MODES: [Mode, string][] = [['week', 'Weekly'], ['month', 'Monthly'], ['year', 'Yearly']];
 
 export default function Home() {
@@ -31,13 +30,12 @@ export default function Home() {
   const [fps, setFps] = useState(3);
   const [hover, setHover] = useState<Hover | null>(null);
   const [values, setValues] = useState(true);
+  const [pin, setPin] = useState<[number, number] | null>(null); // flagged pixel
+  const [sample, setSample] = useState<Sample | null>(null);
   const [data, setData] = useState<{ key: string; pts: Series }>({ key: '', pts: {} }); // values seen per map cell
-  const [focus, setFocus] = useState<{ cell: string; lat: number; lon: number } | null>(null); // cell the graph is about
-  const [closed, setClosed] = useState<string | null>(null); // cell whose graph the user dismissed
   const [palettes, setPalettes] = useState<Record<string, Palette>>({}); // chosen colours, per indicator
   const [cm, setCm] = useState<Colormap | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const rest = useRef<string | null>(null); // cell the pointer has been resting on
 
   // A newer-data check can push an indicator's last month forward.
   const base = INDICATORS.find(i => i.id === indId)!;
@@ -118,22 +116,13 @@ export default function Home() {
     return () => document.removeEventListener('pointerdown', away);
   }, [open]);
 
-  // Collect the value at the pixel under the pointer for every frame it sees; the graph grows as frames play.
+  // Every frame shown at the flagged pixel adds one point; the graph grows as frames play or are scrubbed.
   const seriesKey = `${variant.layer}|${m}`;
-  useEffect(() => { setFocus(null); }, [seriesKey]);
   useEffect(() => {
-    if (!hover) { rest.current = null; return; }
-    const date = dates[urls.indexOf(hover.src)];
-    if (hover.num === null || !date) return;
-    const cell = hover.cell.join(',');
-    const save = () => {
-      setData(d => ({ key: seriesKey, pts: addPoint(d.key === seriesKey ? d.pts : {}, cell, date, hover.num!) }));
-      setFocus(f => (f?.cell === cell ? f : { cell, lat: hover.cell[0], lon: hover.cell[1] }));
-    };
-    if (rest.current === cell) { save(); return; }
-    const t = setTimeout(() => { rest.current = cell; save(); }, REST_MS);
-    return () => clearTimeout(t);
-  }, [hover]); // eslint-disable-line react-hooks/exhaustive-deps
+    const date = sample && dates[urls.indexOf(sample.src)];
+    if (!sample || sample.num === null || !date) return;
+    setData(d => ({ key: seriesKey, pts: addPoint(d.key === seriesKey ? d.pts : {}, sample.cell, date, sample.num!) }));
+  }, [sample]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setPalette = (p: Partial<Palette>) => setPalettes(s => ({ ...s, [ind.id]: { ...palette, ...p } }));
 
@@ -146,15 +135,14 @@ export default function Home() {
     min: fmt(bins[0].value),
     max: fmt(bins[bins.length - 1].value),
   } : null;
-  const pts = focus && data.key === seriesKey ? pointsOf(data.pts, focus.cell) : [];
-  const showChart = !!focus && values && pts.length >= MIN_POINTS && focus.cell !== closed;
-  const marker: [number, number] | null = !values ? null : hover ? hover.cell : focus && [focus.lat, focus.lon];
+  const pts = pin && data.key === seriesKey ? pointsOf(data.pts, pin.join(',')) : [];
+  const toggleValues = (on: boolean) => { setValues(on); if (!on) setPin(null); };
 
   return (
-    <main className={showChart ? 'with-chart' : undefined}>
+    <main className={pin ? 'with-chart' : undefined}>
       <GlobeView src={urls[safe] ?? null} detailUrl={detailUrl} colormap={variant.colormap} format={format}
         alpha={ind.alpha} palette={palette} north={!!ind.north} onHover={setHover}
-        values={values} onValues={setValues} marker={marker} />
+        values={values} pin={pin} onPick={setPin} onSample={setSample} />
 
       {hover && (
         <div className="panel tip" style={{ left: tipLeft, top: hover.y + 14 }}>
@@ -204,6 +192,14 @@ export default function Home() {
               ))}
             </div>
 
+            <label className="check">
+              <input type="checkbox" checked={values} onChange={e => toggleValues(e.target.checked)} />
+              <span>
+                <b>Read values</b>
+                <span className="cap muted">Click or tap the globe to read a value and plant a flag. Then press Play to graph how that spot changes.</span>
+              </span>
+            </label>
+
             <div className="seg" role="group" aria-label="Time step">
               {MODES.map(([k, text]) => (
                 <button key={k} aria-pressed={m === k} disabled={k === 'week' && !ind.weekly} onClick={() => setMode(k)}>{text}</button>
@@ -227,9 +223,9 @@ export default function Home() {
 
       <TimeDock legend={legend} label={label} frames={dates.length} index={safe} playing={playing} fps={fps}
         onSeek={i => { setPlaying(false); setIdx(i); }} onPlay={() => setPlaying(p => !p)} onFps={setFps}
-        chart={showChart && focus && (
-          <TrendChart title={`${focus.lat.toFixed(2)}°, ${focus.lon.toFixed(2)}°`} points={pts} current={dates[safe]}
-            fmt={fmt} label={d => fmtFor(d, m)} onClose={() => setClosed(focus.cell)} />
+        chart={pin && (
+          <TrendChart title={`${pin[0].toFixed(2)}°, ${pin[1].toFixed(2)}°`} points={pts} current={dates[safe]}
+            fmt={fmt} label={d => fmtFor(d, m)} onClose={() => setPin(null)} />
         )} />
 
       {snack && (

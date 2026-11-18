@@ -1,3 +1,5 @@
+import { MIN_POINTS } from '@/lib/series';
+
 interface Props {
   title: string; points: { date: string; value: number }[]; current?: string;
   fmt: (v: number) => string; label: (date: string) => string; onClose: () => void;
@@ -7,6 +9,17 @@ const W = 300, H = 64;
 
 /** Minimal line graph of one cell's values over time. */
 export default function TrendChart({ title, points, current, fmt, label, onClose }: Props) {
+  if (points.length < MIN_POINTS) {
+    return (
+      <div className="chart" data-testid="trend-hint">
+        <div className="chart-head">
+          <span>Flag at {title}</span>
+          <button aria-label="Close graph" onClick={onClose}>×</button>
+        </div>
+        <p className="cap muted">{points.length} of {MIN_POINTS} frames collected. Press Play or drag the time slider to build the graph.</p>
+      </div>
+    );
+  }
   const t = points.map(p => Date.parse(p.date));
   const [t0, t1] = [t[0], t[t.length - 1]];
   const lo = Math.min(...points.map(p => p.value)), hi = Math.max(...points.map(p => p.value));

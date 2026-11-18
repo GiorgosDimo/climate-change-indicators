@@ -13,12 +13,9 @@ declare global {
   }
 }
 
-export interface Hover {
-  x: number; y: number; lat: number; lon: number; value: string;
-  num: number | null;        // the value as a number (null = no data)
-  cell: [number, number];    // centre of the image pixel that was read: the exact spot shown by the flag
-  src: string;               // URL of the frame the value comes from
-}
+export interface Hover { x: number; y: number; lat: number; lon: number; value: string }
+/** Value of the flagged pixel in one frame. */
+export interface Sample { num: number | null; src: string; cell: string }
 
 interface Props {
   src: string | null;      // whole-globe image URL of the current frame
@@ -30,8 +27,9 @@ interface Props {
   north: boolean;          // tilt to the north pole
   onHover: (h: Hover | null) => void;
   values: boolean;         // read values on hover/tap (off: plain panning)
-  onValues: (on: boolean) => void;
-  marker: [number, number] | null; // lat, lon of the flag
+  pin: [number, number] | null; // flagged pixel centre (lat, lon)
+  onPick: (cell: [number, number]) => void; // click or tap: plant the flag
+  onSample: (s: Sample) => void; // flagged pixel's value, once per new frame
 }
 
 const MIN_DIST = 3e6;        // ~tile level 4: closest zoom
@@ -39,7 +37,7 @@ const MAX_DIST = 4e7;
 const DETAIL_BELOW = 9e6;    // fetch a sharper image of the visible area below this camera height
 const FADE = 0.01;           // not 0: Cesium skips layers at alpha 0, so they would never load
 
-export default function GlobeView({ src, detailUrl, colormap, format, alpha, palette, north, onHover, values, onValues, marker }: Props) {
+export default function GlobeView({ src, detailUrl, colormap, format, alpha, palette, north, onHover, values, pin, onPick, onSample }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const viewer = useRef<any>(null);
@@ -55,13 +53,13 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   const flying = useRef(false);
   const lastPick = useRef<{ x: number; y: number; lat: number; lon: number } | null>(null);
   const cmName = useRef(''), bmpCmName = useRef(''); // legend the loaded colormap / current image belong to
-  const latest = useRef({ alpha, format, detailUrl, onHover, palette, colormap, values });
-  latest.current = { alpha, format, detailUrl, onHover, palette, colormap, values };
+  const latest = useRef({ alpha, format, detailUrl, onHover, palette, colormap, values, pin, onSample, onPick });
+  latest.current = { alpha, format, detailUrl, onHover, palette, colormap, values, pin, onSample, onPick };
   const paletteKey = `${palette.id}${palette.low}${palette.high}`;
   const api = useRef({
     scheduleDetail: () => {}, clearDetail: () => {}, settle: async () => {},
     display: async (f: { url: string; blob: Blob }) => f.url,
-    refresh: () => {},
+    refresh: () => {}, snap: (lat: number, lon: number): [number, number] => [lat, lon],
   });
 
   useEffect(() => {
@@ -151,25 +149,36 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
         } catch { /* no detail for this area: keep the coarse image */ }
       }, 700);
     };
-    api.current = { scheduleDetail, clearDetail, settle, display, refresh: () => lastPick.current && emit(lastPick.current) };
+    Object.assign(api.current, { scheduleDetail, clearDetail, settle, display });
     v.camera.moveStart.addEventListener(() => { clearDetail(); lastPick.current = null; latest.current.onHover(null); });
     v.camera.moveEnd.addEventListener(scheduleDetail);
 
-    // Value under a fixed spot. Re-run on every new frame so the number follows the animation.
-    const emit = (at: { x: number; y: number; lat: number; lon: number }) => {
+    // Value of the image pixel at a spot (null until the image and its legend belong together).
+    const read = (lat: number, lon: number) => {
       const b = bmp.current, cm = cmap.current;
-      if (!b || !cm || cmName.current !== bmpCmName.current) return; // image and legend must be the same layer
-      const px = Math.min(b.width - 1, Math.floor(((at.lon + 180) / 360) * b.width));
-      const py = Math.min(b.height - 1, Math.floor(((90 - at.lat) / 180) * b.height));
+      if (!b || !cm || cmName.current !== bmpCmName.current) return null;
+      const px = Math.min(b.width - 1, Math.floor(((lon + 180) / 360) * b.width));
+      const py = Math.min(b.height - 1, Math.floor(((90 - lat) / 180) * b.height));
       const ctx = new OffscreenCanvas(1, 1).getContext('2d')!;
       ctx.drawImage(b, px, py, 1, 1, 0, 0, 1, 1);
       const [r, g, bl, a] = ctx.getImageData(0, 0, 1, 1).data;
-      const val = a < 128 ? null : decode(cm, r, g, bl);
-      latest.current.onHover({
-        ...at, value: val === null ? 'No data' : latest.current.format(val, cm.units), num: val, src: bmpSrc.current,
-        cell: [90 - ((py + 0.5) / b.height) * 180, -180 + ((px + 0.5) / b.width) * 360],
-      });
+      return {
+        num: a < 128 ? null : decode(cm, r, g, bl), units: cm.units,
+        cell: [90 - ((py + 0.5) / b.height) * 180, -180 + ((px + 0.5) / b.width) * 360] as [number, number],
+      };
     };
+    // Tooltip under a fixed spot. Re-run on every new frame so the number follows the animation.
+    const emit = (at: { x: number; y: number; lat: number; lon: number }) => {
+      const v = read(at.lat, at.lon);
+      if (v) latest.current.onHover({ ...at, value: v.num === null ? 'No data' : latest.current.format(v.num, v.units) });
+    };
+    // The flagged pixel is sampled on every new frame, whatever the pointer is doing.
+    const samplePin = () => {
+      const pin = latest.current.pin, v = pin && read(pin[0], pin[1]);
+      if (v) latest.current.onSample({ num: v.num, src: bmpSrc.current, cell: v.cell.join(',') });
+    };
+    api.current.refresh = () => { if (lastPick.current) emit(lastPick.current); samplePin(); };
+    api.current.snap = (lat: number, lon: number) => read(lat, lon)?.cell ?? [lat, lon];
     // Hover on desktop, tap on touch screens.
     const pick = (pos: { x: number; y: number }) => {
       if (!latest.current.values) return;
@@ -181,7 +190,11 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     };
     const h = new C.ScreenSpaceEventHandler(v.scene.canvas);
     h.setInputAction((m: { endPosition: { x: number; y: number } }) => pick(m.endPosition), C.ScreenSpaceEventType.MOUSE_MOVE);
-    h.setInputAction((m: { position: { x: number; y: number } }) => pick(m.position), C.ScreenSpaceEventType.LEFT_CLICK);
+    h.setInputAction((m: { position: { x: number; y: number } }) => {
+      pick(m.position);
+      const at = lastPick.current;
+      if (at && latest.current.values) latest.current.onPick(api.current.snap(at.lat, at.lon));
+    }, C.ScreenSpaceEventType.LEFT_CLICK);
 
     return () => { clearTimeout(timer); v.destroy(); viewer.current = null; layer.current = null; detail.current = null; flag.current = null; };
   }, []);
@@ -237,18 +250,19 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     if (!values) { lastPick.current = null; onHover(null); }
   }, [values, onHover]);
 
-  // Flag on the pixel being read.
+  // Flag on the pixel being read; sample it right away so a paused frame already counts.
   useEffect(() => {
     const v = viewer.current, C = window.Cesium;
     if (!v || v.isDestroyed()) return;
-    if (!marker) { if (flag.current) flag.current.show = false; } else {
-      const position = C.Cartesian3.fromDegrees(marker[1], marker[0]);
+    if (!pin) { if (flag.current) flag.current.show = false; } else {
+      const position = C.Cartesian3.fromDegrees(pin[1], pin[0]);
       if (flag.current) { flag.current.position = position; flag.current.show = true; } else {
-        flag.current = v.entities.add({ position, billboard: { image: flagIcon(), verticalOrigin: C.VerticalOrigin.BOTTOM } });
+        flag.current = v.entities.add({ position, billboard: { image: FLAG, width: 28, height: 36, verticalOrigin: C.VerticalOrigin.BOTTOM } });
       }
+      api.current.refresh();
     }
     v.scene.requestRender();
-  }, [marker?.[0], marker?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pin?.[0], pin?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const v = viewer.current, C = window.Cesium;
@@ -275,9 +289,6 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     <div className="globe">
       <div ref={boxRef} className={`globe-view${values ? '' : ' grab'}`} onMouseLeave={() => { lastPick.current = null; onHover(null); }} />
       <div className="tools">
-        <button className="fab" aria-label="Show values" aria-pressed={values} title="Show values on hover or tap" onClick={() => onValues(!values)}>
-          <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm-1-6v3.1A7 7 0 005.1 11H2v2h3.1A7 7 0 0011 18.9V22h2v-3.1a7 7 0 005.9-5.9H22v-2h-3.1A7 7 0 0013 5.1V2h-2zm1 5a5 5 0 110 10 5 5 0 010-10z" /></svg>
-        </button>
         <button className="fab" aria-label="Zoom in" onClick={() => zoom(0.6)}>+</button>
         <button className="fab" aria-label="Zoom out" onClick={() => zoom(1 / 0.6)}>−</button>
       </div>
@@ -285,15 +296,12 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   );
 }
 
-/** Small red flag; the pole's foot is the bottom-centre of the image. */
-function flagIcon() {
-  const c = document.createElement('canvas');
-  c.width = 28; c.height = 36;
-  const g = c.getContext('2d')!;
-  g.lineWidth = 3; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(14, 4); g.lineTo(14, 35); g.stroke();
-  g.fillStyle = '#e53935'; g.strokeStyle = '#fff'; g.lineWidth = 1.5;
-  g.beginPath(); g.moveTo(15, 3); g.lineTo(27, 9); g.lineTo(15, 16); g.closePath(); g.fill(); g.stroke();
-  return c;
-}
+/** Red flag as SVG (drawn at 3x the display size so it stays sharp); the pole's foot is the bottom-centre. */
+const FLAG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="84" height="108" viewBox="0 0 28 36">' +
+  '<ellipse cx="14" cy="34.6" rx="4.5" ry="1.4" fill="#000" opacity=".35"/>' +
+  '<rect x="13" y="3" width="2" height="31.6" rx="1" fill="#fff" stroke="#222" stroke-width=".6"/>' +
+  '<circle cx="14" cy="3" r="2" fill="#fff" stroke="#222" stroke-width=".6"/>' +
+  '<path d="M15 4.5C19 2.2 22 6.8 27 4.5V14.5C22 16.8 19 12.2 15 14.5Z" fill="#e53935" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg>');
 
 const deg180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;

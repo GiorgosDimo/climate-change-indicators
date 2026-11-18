@@ -89,7 +89,9 @@ select { background: #2a2a2a; border: 1px solid var(--line); border-radius: 4px;
 .fab { width: 40px; height: 40px; border: 0; border-radius: 50%; background: #e0e0e0; color: #000; font-size: 22px;
   line-height: 1; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); display: grid; place-items: center; }
 .fab svg { width: 22px; height: 22px; fill: currentColor; }
-.fab[aria-pressed="true"] { background: var(--accent); }
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.check span { display: flex; flex-direction: column; }
 
 .snack { position: absolute; z-index: 1300; top: 8px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 16px);
   display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-radius: 4px; background: #0b2b3f; color: #b3e5fc; }
