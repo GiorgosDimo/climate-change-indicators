@@ -10,6 +10,7 @@ export interface Variant {
   layer: string;       // WMS layer name (for an image template: just a unique name)
   wms?: string;        // WMS endpoint; GIBS when omitted
   template?: string;   // instead of WMS: image URL with {date} (and optionally {width} {height} {bbox})
+  geotiff?: boolean;   // the template's files are GeoTIFFs, painted with the legend in the browser
   colormap: string;    // legend used to turn pixel colour back into a value: GIBS colormap name, URL of its XML, or a registered inline legend
   start: string;       // first date available
   end: string;         // last date available
@@ -143,17 +144,19 @@ export function framesFor(ind: Indicator, months: string[], mode: Mode): string[
 export type BBox = [west: number, south: number, east: number, north: number];
 
 export const GIBS_WMS = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
-type Source = Pick<Variant, 'layer' | 'wms' | 'template'>;
+type Source = Pick<Variant, 'layer' | 'wms' | 'template' | 'geotiff'> & { colormap?: string };
 
 /** A fixed image template always shows the whole globe, so it cannot supply a sharper image of the zoomed-in area. */
-export const hasDetail = (v: Source) => !v.template || v.template.includes('{bbox}');
+export const hasDetail = (v: Source) => !v.geotiff && (!v.template || v.template.includes('{bbox}'));
 
 /** Image URL for one frame: a WMS GetMap (EPSG:4326, TIME=date) or the image template filled in. */
 export const frameUrl = (v: Source, date: string, width: number, bbox: BBox = [-180, -90, 180, 90], height?: number) => {
   const h = height ?? Math.round((width * (bbox[3] - bbox[1])) / (bbox[2] - bbox[0]));
   if (v.template) {
-    return v.template.replace(/\{date\}/g, date).replace(/\{width\}/g, String(width)).replace(/\{height\}/g, String(h))
+    const url = v.template.replace(/\{date\}/g, date).replace(/\{width\}/g, String(width)).replace(/\{height\}/g, String(h))
       .replace(/\{bbox\}/g, bbox.join(','));
+    // The fragment is never sent to the server; it tells loadFrame to paint the file with this legend at this width.
+    return v.geotiff ? `${url}#tif=${encodeURIComponent(v.colormap ?? '')}&w=${width}` : url;
   }
   const base = v.wms ?? GIBS_WMS;
   return `${base}${base.includes('?') ? '&' : '?'}SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1` +

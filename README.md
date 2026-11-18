@@ -1,6 +1,6 @@
 # Climate Change Indicators
 
-An interactive 3D globe that plays georeferenced image data through time. Out of the box it shows ten key climate-change indicators from one data source (NASA GIBS), with no account, API key or backend. It can also show your own data, from a WMS server or a series of images (see [Using your own data](#using-your-own-data)).
+An interactive 3D globe that plays georeferenced image data through time. Out of the box it shows ten key climate-change indicators from one data source (NASA GIBS), with no account, API key or backend. It can also show your own data, from a WMS server, a series of images or GeoTIFF files (see [Using your own data](#using-your-own-data)).
 
 **Live demo: https://climate-change-indicators.vercel.app/**
 
@@ -27,13 +27,14 @@ Each indicator has a description of what it is and how to read it.
 - **Detail on zoom:** zooming in loads a sharper image of the visible region.
 - **Polar tilt** for sea ice, zoom buttons, and a mobile-friendly collapsible menu.
 - **New-data check:** each time the page opens it looks for months published since the last visit and shows a notice (built-in catalog only).
-- **Your own data:** the list of datasets is a catalog loaded from a JSON file with `?catalog=<url>`.
+- **Your own data:** the list of datasets is a catalog loaded from a JSON file with `?catalog=<url>`. Sources can be a WMS server, image files or GeoTIFFs.
 
 ## How it works
 
 - Every frame is one pre-rendered whole-globe image: a PNG from the [GIBS WMS](https://nasa-gibs.github.io/gibs-api-docs/) (EPSG:4326), or from any WMS or image URL you configure. The client swaps images, so there is no video codec and seeking is instant.
 - Frames are fetched ahead (6 frames), kept in an LRU cache of 40, and playback advances only when the next frame has loaded.
 - Layers are swapped without blinking: the new layer is added almost transparent, rendered, then swapped in one step.
+- GeoTIFF frames are read in the browser (the reader is loaded only when one is first needed), resampled onto the globe and painted with the legend, so from then on they behave like any other image.
 - Values are read from the pixel colour by matching it to the layer's legend (the official GIBS colour map, or one you supply), taking the nearest legend bin, then converted to units.
 - Where a layer has no daily product, weekly mode is disabled. Where GIBS returns a blank image for a date, the frame is skipped.
 
@@ -42,6 +43,7 @@ Each indicator has a description of what it is and how to read it.
 - [Next.js 14](https://nextjs.org/) (App Router), React 18, TypeScript
 - [CesiumJS](https://cesium.com/platform/cesiumjs/) 1.122 (loaded from CDN) for the globe, with the bundled Natural Earth II basemap
 - Plain CSS (no UI library), one small stylesheet
+- [geotiff.js](https://geotiffjs.github.io/) for reading GeoTIFF files (loaded on demand)
 - [Vitest](https://vitest.dev/), jsdom and Testing Library for tests
 - Data and imagery: [NASA GIBS](https://earthdata.nasa.gov/gibs)
 
@@ -64,6 +66,7 @@ components/TrendChart.tsx line graph of the flagged pixel, with a fitted trend l
 components/RangeSlider.tsx two-thumb period slider
 lib/indicators.ts         the ten built-in indicators, date and frame logic, frame URLs
 lib/catalog.ts            catalog format: checks and loads a catalog JSON file
+lib/geotiff.ts            reads a GeoTIFF and paints it with a legend
 lib/frames.ts             frame cache, colour-map parsing, pixel decoding
 lib/palette.ts            palettes and client-side recolouring
 lib/series.ts             values collected per pixel and the trend-line fit
@@ -86,6 +89,7 @@ See [examples/catalog.example.json](examples/catalog.example.json). Each indicat
 - **Source, either:**
   - `layer` (plus optional `wms`, the endpoint URL): any WMS 1.1.1 server with a `TIME` dimension that can answer in EPSG:4326, one whole-globe image per date.
   - `template`: an image URL with `{date}`, for example `https://host/frames/{date}.png`. `{width}`, `{height}` and `{bbox}` are filled in if present. Without `{bbox}` there is no extra detail when zooming.
+  - `template` plus `"format": "geotiff"`: one GeoTIFF per date, for example `https://host/tifs/{date}.tif` (see below).
 - **Legend, either:**
   - `legend`: `{ "units": "°C", "stops": [{ "value": 0, "color": "#0000ff" }, ...] }`, smoothed between the stops.
   - `colormap`: a GIBS colormap name, or the URL of a GIBS-format colormap XML.
@@ -93,7 +97,15 @@ See [examples/catalog.example.json](examples/catalog.example.json). Each indicat
   The legend colours must match the colours in the images, because values are read back from the pixel colour.
 - **Optional:** `name`, `res` (image width in px), `alpha`, `north`, `everyDays`, `unit`, `scale`, `weekly` (same fields, used in Weekly mode), `about`, `howto`, `note`.
 
-Frames are requested for the 1st of each month (or every `everyDays` days), so image names must follow that. Images must be served with CORS enabled, because the app reads their pixels. The GIBS new-data check is off for custom catalogs. Only open catalog links you trust: a catalog controls which images and text the page shows.
+**GeoTIFF files** are read in the browser. They need:
+
+- one band (the first is used) in latitude/longitude (EPSG:4326), with longitudes within -180..180. A file may cover only part of the globe; the rest stays empty. Other projections or 0..360 longitudes can be converted first with `gdalwarp -t_srs EPSG:4326 -te -180 -90 180 90 in.tif out.tif`.
+- a `legend` (or `colormap`) whose values are in the file's units. Values outside it take its end colours, and the file's no-data value stays transparent.
+- NetCDF is not read directly; convert it with `gdal_translate -b 1 in.nc out.tif`.
+
+Hover values come from the painted image, so they are rounded to the 256 steps of the legend. Keep files modest (a few thousand pixels wide): each one is fully decoded in the browser. There is no extra detail on zoom for GeoTIFFs.
+
+Frames are requested for the 1st of each month (or every `everyDays` days), so image names must follow that. Image and GeoTIFF files must be served with CORS enabled (or from the same site, with a path like `/data/{date}.tif`), because the app reads their pixels. URLs may be `https://...` or a path starting with `/`. The GIBS new-data check is off for custom catalogs. Only open catalog links you trust: a catalog controls which images and text the page shows.
 
 ## Deploying
 

@@ -15,9 +15,18 @@
       "legend": {
         "units": "°C",
         "stops": [
-          { "value": -20, "color": "#3b4cc0" },
-          { "value": 10, "color": "#f7f7f7" },
-          { "value": 40, "color": "#b40426" }
+          {
+            "value": -20,
+            "color": "#3b4cc0"
+          },
+          {
+            "value": 10,
+            "color": "#f7f7f7"
+          },
+          {
+            "value": 40,
+            "color": "#b40426"
+          }
         ]
       },
       "about": "What this layer shows.",
@@ -32,6 +41,33 @@
       "start": "2010-01-01",
       "end": "2020-12-01",
       "colormap": "https://example.org/legend.xml"
+    },
+    {
+      "id": "geotiff",
+      "name": "GeoTIFF series (one .tif per date)",
+      "template": "https://example.org/tifs/{date}.tif",
+      "format": "geotiff",
+      "layer": "geotiff",
+      "start": "2015-01-01",
+      "end": "2020-12-01",
+      "res": 1440,
+      "legend": {
+        "units": "mm",
+        "stops": [
+          {
+            "value": 0,
+            "color": "#ffffcc"
+          },
+          {
+            "value": 100,
+            "color": "#41b6c4"
+          },
+          {
+            "value": 400,
+            "color": "#0c2c84"
+          }
+        ]
+      }
     }
   ]
 }

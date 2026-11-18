@@ -1,4 +1,5 @@
 // Frame images and colormaps, fetched once and shared by the globe, playback and value picker.
+import { geotiffToPng } from './geotiff';
 
 interface Frame { url: string; blob: Blob }
 const frames = new Map<string, Promise<Frame>>();
@@ -9,7 +10,12 @@ export function loadFrame(src: string): Promise<Frame> {
   let p = frames.get(src);
   if (p) { frames.delete(src); frames.set(src, p); return p; } // re-insert: most recently used goes last
   if (!p) {
-    p = fetch(src).then(async r => {
+    const [url, hash] = src.split('#'), tif = new URLSearchParams(hash ?? '');
+    p = fetch(url).then(async r => {
+      if (tif.has('tif') && r.ok) { // GeoTIFF: painted with its legend, so everything after this sees an ordinary image
+        const blob = await geotiffToPng(await r.arrayBuffer(), await loadColormap(tif.get('tif')!), Number(tif.get('w')));
+        return { url: URL.createObjectURL(blob), blob };
+      }
       const blob = await r.blob();
       if (!r.ok || !blob.type.startsWith('image/')) throw new Error(`no frame (${r.status})`);
       return { url: URL.createObjectURL(blob), blob };

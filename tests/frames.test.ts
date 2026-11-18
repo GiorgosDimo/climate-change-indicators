@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { decode, loadColormap, loadFrame, parseColormap } from '@/lib/frames';
+const { geotiffToPng } = vi.hoisted(() => ({ geotiffToPng: vi.fn(async () => new Blob(['png'], { type: 'image/png' })) }));
+vi.mock('@/lib/geotiff', () => ({ geotiffToPng }));
+import { decode, loadColormap, loadFrame, parseColormap, registerColormap } from '@/lib/frames';
 
 const XML = `<ColorMaps>
   <ColorMap title="No Data"><Entries><ColorMapEntry rgb="0,0,0" transparent="true" nodata="true"/></Entries></ColorMap>
@@ -83,5 +85,29 @@ describe('fetching', () => {
   it('fails clearly when a colormap is missing', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 404 })));
     await expect(loadColormap('Missing_Map')).rejects.toThrow('404');
+  });
+});
+
+describe('GeoTIFF frames', () => {
+  beforeEach(() => {
+    geotiffToPng.mockClear();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:tif'), revokeObjectURL: vi.fn() }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('fetches the file without the fragment and returns it painted as an image', async () => {
+    registerColormap('tif-legend', { units: 'K', bins: [{ r: 0, g: 0, b: 0, value: 1 }] });
+    const fetchMock = vi.fn(async () => new Response(new ArrayBuffer(8)));
+    vi.stubGlobal('fetch', fetchMock);
+    const f = await loadFrame('https://h.org/a.tif#tif=tif-legend&w=1440');
+    expect(fetchMock).toHaveBeenCalledWith('https://h.org/a.tif');
+    expect(geotiffToPng).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.objectContaining({ units: 'K' }), 1440);
+    expect(f.blob.type).toBe('image/png');
+  });
+
+  it('fails like any missing frame when the file is not found', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status: 404 })));
+    await expect(loadFrame('https://h.org/missing.tif#tif=tif-legend&w=1440')).rejects.toThrow(/no frame \(404\)/);
+    expect(geotiffToPng).not.toHaveBeenCalled();
   });
 });

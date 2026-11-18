@@ -35,14 +35,21 @@ describe('parseCatalog', () => {
     ['neither layer nor template', cat(ind({ layer: undefined })), /layer.*template/],
     ['template without {date}', cat(ind({ template: 'https://x.org/a.png' })), /\{date\}/],
     ['non-http url', cat(ind({ wms: 'javascript:alert(1)' })), /http/],
+    ['protocol-relative url', cat(ind({ wms: '//evil.org/wms' })), /http/],
     ['bad dates', cat(ind({ start: '2000-1-1' })), /YYYY-MM-DD/],
     ['end before start', cat(ind({ start: '2002-01-01' })), /start before end/],
     ['no legend or colormap', cat(ind({ colormap: undefined })), /legend.*colormap/],
     ['one-stop legend', cat(ind({ legend: { stops: [{ value: 1, color: '#000000' }] } })), /at least 2/],
     ['bad stop colour', cat(ind({ legend: { stops: [{ value: 1, color: 'red' }, { value: 2, color: '#000000' }] } })), /at least 2/],
+    ['unknown format', cat(ind({ template: 'https://h.org/{date}.png', format: 'png' })), /format/],
+    ['geotiff without a template', cat(ind({ format: 'geotiff' })), /needs a "template"/],
     ['bad weekly', cat(ind({ weekly: { layer: 'W' } })), /weekly/],
   ])('rejects %s with a message that says where', (_n, json, msg) => {
     expect(() => parseCatalog(json)).toThrow(msg);
+  });
+
+  it('accepts a path on the same site', () => {
+    expect(parseCatalog(cat(ind({ template: '/frames/{date}.png' }))).indicators[0].template).toBe('/frames/{date}.png');
   });
 
   it('registers an inline legend so the colour picker can use it', async () => {
@@ -58,7 +65,7 @@ describe('parseCatalog', () => {
 describe('expandLegend', () => {
   it('interpolates colours and values between stops', () => {
     const bins = expandLegend([{ value: 0, color: '#000000' }, { value: 100, color: '#ff0000' }, { value: 200, color: '#ff0000' }]);
-    expect(bins).toHaveLength(64);
+    expect(bins).toHaveLength(256);
     expect(bins[0]).toMatchObject({ r: 0, value: 0 });
     expect(bins.at(-1)).toMatchObject({ r: 255, value: 200 });
     expect(bins.map(b => b.value)).toEqual([...bins.map(b => b.value)].sort((x, y) => x - y)); // monotonic
@@ -66,6 +73,15 @@ describe('expandLegend', () => {
 });
 
 describe('frame sources', () => {
+  it('a GeoTIFF source adds the legend and width as a fragment, and has no zoom detail', () => {
+    const v = { layer: 'x', template: 'https://h.org/{date}.tif', geotiff: true, colormap: 'inline:indicators[0]' };
+    expect(frameUrl(v, '2020-03-01', 1440)).toBe('https://h.org/2020-03-01.tif#tif=inline%3Aindicators%5B0%5D&w=1440');
+    expect(hasDetail(v)).toBe(false);
+  });
+  it('the catalog accepts format geotiff', () => {
+    const [a] = parseCatalog(cat(ind({ layer: undefined, template: 'https://h.org/{date}.tif', format: 'geotiff' }))).indicators;
+    expect(a.geotiff).toBe(true);
+  });
   it('a WMS source uses its own endpoint and keeps an existing query string', () => {
     expect(frameUrl({ layer: 'L', wms: 'https://h.org/wms' }, '2020-03-01', 720)).toMatch(/^https:\/\/h\.org\/wms\?SERVICE=WMS/);
     expect(frameUrl({ layer: 'L', wms: 'https://h.org/wms?map=x' }, '2020-03-01', 720)).toMatch(/^https:\/\/h\.org\/wms\?map=x&SERVICE=WMS/);

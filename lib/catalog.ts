@@ -9,7 +9,7 @@ export const DEFAULT_CATALOG: Catalog = { title: 'Climate Change Indicators', cr
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const HEX = /^#[0-9a-f]{6}$/i;
-const STEPS = 64; // a legend of a few colour stops is smoothed into this many bins so hover values are not coarse
+const STEPS = 256; // a legend of a few colour stops is smoothed into this many bins so hover values are not coarse
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Raw = Record<string, any>;
@@ -32,7 +32,9 @@ function variant(raw: Raw, where: string): Variant {
   const layer = text(raw.layer), template = text(raw.template), wms = text(raw.wms);
   if (!layer && !template) fail(where, 'needs "layer" (a WMS layer) or "template" (an image URL containing {date})');
   if (template && !template.includes('{date}')) fail(where, '"template" must contain {date}');
-  for (const u of [wms, template]) if (u && !/^https?:\/\//.test(u)) fail(where, 'URLs must start with http:// or https://');
+  if (raw.format !== undefined && raw.format !== 'geotiff') fail(where, '"format" can only be "geotiff"');
+  if (raw.format === 'geotiff' && !template) fail(where, 'format "geotiff" needs a "template" (URL of the .tif with {date})');
+  for (const u of [wms, template]) if (u && !/^(https?:\/\/|\/(?!\/))/.test(u)) fail(where, 'URLs must start with http://, https:// or / (a path on this site)');
   const { start, end } = raw;
   if (!ISO.test(start ?? '') || !ISO.test(end ?? '') || start >= end) fail(where, '"start" and "end" must be YYYY-MM-DD dates, start before end');
 
@@ -48,7 +50,7 @@ function variant(raw: Raw, where: string): Variant {
   if (!colormap) fail(where, 'needs a "legend" ({stops}) or a "colormap" (GIBS colormap name or URL of its XML)');
 
   return {
-    layer: layer || template, colormap, start, end, wms: wms || undefined, template: template || undefined,
+    layer: layer || template, colormap, start, end, wms: wms || undefined, template: template || undefined, geotiff: raw.format === 'geotiff' || undefined,
     everyDays: typeof raw.everyDays === 'number' ? raw.everyDays : undefined,
     unit: text(raw.unit) || undefined, scale: typeof raw.scale === 'number' ? raw.scale : undefined,
   };
