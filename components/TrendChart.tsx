@@ -2,19 +2,27 @@ import { MIN_POINTS, linearFit } from '@/lib/series';
 
 interface Props {
   title: string; points: { date: string; value: number }[]; current?: string;
-  fmt: (v: number) => string; label: (date: string) => string; onClose: () => void;
+  fmt: (v: number) => string; label: (date: string) => string; minimized: boolean; onToggle: () => void;
 }
 
 const W = 300, H = 64;
 
 /** Minimal line graph of one cell's values over time. */
-export default function TrendChart({ title, points, current, fmt, label, onClose }: Props) {
+export default function TrendChart({ title, points, current, fmt, label, minimized, onToggle }: Props) {
+  const toggle = <button aria-label={minimized ? 'Show graph' : 'Minimize graph'} title={minimized ? 'Show graph' : 'Minimize graph'} onClick={onToggle}>{minimized ? '▴' : '▾'}</button>;
+  if (minimized) {
+    return (
+      <div className="chart" data-testid="trend-min">
+        <div className="chart-head"><span>Flag at {title} <span className="muted">· {points.length} {points.length === 1 ? 'frame' : 'frames'}</span></span>{toggle}</div>
+      </div>
+    );
+  }
   if (points.length < MIN_POINTS) {
     return (
       <div className="chart" data-testid="trend-hint">
         <div className="chart-head">
           <span>Flag at {title}</span>
-          <button aria-label="Close graph" onClick={onClose}>×</button>
+          {toggle}
         </div>
         <p className="cap muted">{points.length} of {MIN_POINTS} frames collected. Press Play or drag the time slider to build the graph.</p>
       </div>
@@ -31,7 +39,7 @@ export default function TrendChart({ title, points, current, fmt, label, onClose
     <div className="chart" data-testid="trend">
       <div className="chart-head">
         <span>{title} <span className="muted">· dashed = trend</span></span>
-        <button aria-label="Close graph" onClick={onClose}>×</button>
+        {toggle}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
         {cur !== null && cur >= 0 && cur <= W && (

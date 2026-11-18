@@ -182,13 +182,24 @@ describe('flag and value trend graph', () => {
     expect(screen.queryByTestId('trend-hint')).toBeNull();
   });
 
-  it('closing removes the flag and the graph', async () => {
+  it('minimizing keeps the flag and collecting, and the graph can be shown again', async () => {
     const user = userEvent.setup();
     render(<Home />);
     await user.click(screen.getByRole('button', { name: 'click globe' }));
-    await user.click(screen.getByRole('button', { name: 'Close graph' }));
-    expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '');
+    await user.click(screen.getByRole('button', { name: 'Minimize graph' }));
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '10.25,20.25');
     expect(screen.queryByTestId('trend-hint')).toBeNull();
+    for (const i of [0, 1, 2, 3, 4]) await frame(user, i);
+    expect(screen.getByTestId('trend-min')).toHaveTextContent('5 frames');
+    await user.click(screen.getByRole('button', { name: 'Show graph' }));
+    expect(screen.getByTestId('trend')).toBeInTheDocument();
+  });
+
+  it('keeps the time-step buttons outside the scrolling menu body, next to the tip', () => {
+    render(<Home />);
+    const weekly = screen.getByRole('button', { name: 'Weekly' });
+    expect(weekly.closest('.menu-body')).toBeNull();
+    expect(weekly.closest('.menu-pin')!.nextElementSibling).toHaveTextContent(/press Play below/);
   });
 
   it('the Read values button sits with the legend; turning it off removes the flag', async () => {

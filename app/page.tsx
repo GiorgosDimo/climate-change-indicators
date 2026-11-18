@@ -30,6 +30,7 @@ export default function Home() {
   const [fps, setFps] = useState(3);
   const [hover, setHover] = useState<Hover | null>(null);
   const [values, setValues] = useState(true);
+  const [minimized, setMinimized] = useState(false); // trend graph collapsed to its title bar
   const [pin, setPin] = useState<[number, number] | null>(null); // flagged pixel
   const [sample, setSample] = useState<Sample | null>(null);
   const [data, setData] = useState<{ key: string; pts: Series }>({ key: '', pts: {} }); // values seen per map cell
@@ -139,7 +140,7 @@ export default function Home() {
   const toggleValues = (on: boolean) => { setValues(on); if (!on) setPin(null); };
 
   return (
-    <main className={pin ? 'with-chart' : undefined}>
+    <main className={pin && !minimized ? 'with-chart' : undefined}>
       <GlobeView src={urls[safe] ?? null} detailUrl={detailUrl} colormap={variant.colormap} format={format}
         alpha={ind.alpha} palette={palette} north={!!ind.north} onHover={setHover}
         values={values} pin={pin} onPick={setPin} onSample={setSample} />
@@ -192,12 +193,6 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="seg" role="group" aria-label="Time step">
-              {MODES.map(([k, text]) => (
-                <button key={k} aria-pressed={m === k} disabled={k === 'week' && !ind.weekly} onClick={() => setMode(k)}>{text}</button>
-              ))}
-            </div>
-
             <div>
               <span className="cap muted">Period</span>
               <RangeSlider min={0} max={months.length - 1} value={range} onChange={setRange} labels={['Period start', 'Period end']} />
@@ -209,7 +204,16 @@ export default function Home() {
             <span className="cap muted">Imagery: NASA GIBS</span>
           </div>
         )}
-        {/* outside the scrolling area so it is always in view */}
+        {/* these two sit outside the scrolling area so they are always in view */}
+        {open && (
+          <div className="menu-pin">
+            <div className="seg" role="group" aria-label="Time step">
+              {MODES.map(([k, text]) => (
+                <button key={k} aria-pressed={m === k} disabled={k === 'week' && !ind.weekly} onClick={() => setMode(k)}>{text}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {open && <p className="tip-text">Tip: press Play below to watch how this indicator changes over time.</p>}
       </div>
 
@@ -218,7 +222,7 @@ export default function Home() {
         onSeek={i => { setPlaying(false); setIdx(i); }} onPlay={() => setPlaying(p => !p)} onFps={setFps}
         chart={pin && (
           <TrendChart title={`${pin[0].toFixed(2)}°, ${pin[1].toFixed(2)}°`} points={pts} current={dates[safe]}
-            fmt={fmt} label={d => fmtFor(d, m)} onClose={() => setPin(null)} />
+            fmt={fmt} label={d => fmtFor(d, m)} minimized={minimized} onToggle={() => setMinimized(v => !v)} />
         )} />
 
       {snack && (
