@@ -1,6 +1,6 @@
 # Climate Change Indicators
 
-An interactive 3D globe that shows ten key climate-change indicators over time, from one data source (NASA GIBS), with no account, API key or backend.
+An interactive 3D globe that plays georeferenced image data through time. Out of the box it shows ten key climate-change indicators from one data source (NASA GIBS), with no account, API key or backend. It can also show your own data, from a WMS server or a series of images (see [Using your own data](#using-your-own-data)).
 
 **Live demo: https://climate-change-indicators.vercel.app/**
 
@@ -22,18 +22,19 @@ Each indicator has a description of what it is and how to read it.
 
 - **Time controls:** weekly, monthly or yearly frames, a period range slider, play/pause and 1–10 fps speed.
 - **Value picker:** hover or tap anywhere to read the value. It updates with every frame while the coordinates stay fixed. Temperatures show °C with °F in brackets.
-- **Trend graph:** click or tap the globe to plant a flag on that pixel, then press Play (or drag the time slider). Each frame adds a point, and after five a line graph of that spot over time appears and keeps growing. A dashed trend line is fitted through the points. The "Read values" button next to the legend turns this off for plain panning.
+- **Trend graph:** click or tap the globe to plant a flag on that pixel, then press Play (or drag the time slider). Each frame adds a point, and after five a line graph of that spot over time appears and keeps growing. A dashed trend line is fitted through the points. The ▾ button minimizes the graph to one line (the flag keeps collecting) and ▴ shows it again. The "Read values" button next to the legend turns this off for plain panning.
 - **Legend and colours:** a legend per layer, plus original, Viridis, blue-red, grayscale or custom two-colour palettes, applied in the browser.
 - **Detail on zoom:** zooming in loads a sharper image of the visible region.
 - **Polar tilt** for sea ice, zoom buttons, and a mobile-friendly collapsible menu.
-- **New-data check:** each time the page opens it looks for months published since the last visit and shows a notice.
+- **New-data check:** each time the page opens it looks for months published since the last visit and shows a notice (built-in catalog only).
+- **Your own data:** the list of datasets is a catalog loaded from a JSON file with `?catalog=<url>`.
 
 ## How it works
 
-- Every frame is one pre-rendered whole-globe PNG from the [GIBS WMS](https://nasa-gibs.github.io/gibs-api-docs/) (EPSG:4326). The client swaps images, so there is no video codec and seeking is instant.
+- Every frame is one pre-rendered whole-globe image: a PNG from the [GIBS WMS](https://nasa-gibs.github.io/gibs-api-docs/) (EPSG:4326), or from any WMS or image URL you configure. The client swaps images, so there is no video codec and seeking is instant.
 - Frames are fetched ahead (6 frames), kept in an LRU cache of 40, and playback advances only when the next frame has loaded.
 - Layers are swapped without blinking: the new layer is added almost transparent, rendered, then swapped in one step.
-- Values are read from the pixel colour by matching it to the layer's official GIBS colour map (nearest legend bin), then converted to units.
+- Values are read from the pixel colour by matching it to the layer's legend (the official GIBS colour map, or one you supply), taking the nearest legend bin, then converted to units.
 - Where a layer has no daily product, weekly mode is disabled. Where GIBS returns a blank image for a date, the frame is skipped.
 
 ## Tech stack
@@ -58,14 +59,18 @@ Other scripts: `npm run build`, `npm start`, `npm test`, `npm run typecheck`.
 ```
 app/page.tsx              page state: indicator, mode, frames, playback, menu
 components/GlobeView.tsx  Cesium globe, layer swap, detail overlay, hover value
-components/TimeDock.tsx   legend, time slider, play and speed
+components/TimeDock.tsx   legend, Read values button, time slider, play and speed
+components/TrendChart.tsx line graph of the flagged pixel, with a fitted trend line
+components/RangeSlider.tsx two-thumb period slider
 lib/indicators.ts         the ten built-in indicators, date and frame logic, frame URLs
 lib/catalog.ts            catalog format: checks and loads a catalog JSON file
 lib/frames.ts             frame cache, colour-map parsing, pixel decoding
 lib/palette.ts            palettes and client-side recolouring
+lib/series.ts             values collected per pixel and the trend-line fit
 lib/format.ts             value formatting (°C / °F, units)
 lib/updates.ts            new-data check
 tests/                    unit and integration tests
+examples/                 example catalog file
 ```
 
 ## Using your own data
