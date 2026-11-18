@@ -1,4 +1,4 @@
-import { MIN_POINTS, linearFit } from '@/lib/series';
+import { MIN_POINTS, linearFit } from '../lib/series';
 
 interface Props {
   title: string; points: { date: string; value: number }[]; current?: string;
@@ -12,19 +12,19 @@ export default function TrendChart({ title, points, current, fmt, label, minimiz
   const toggle = <button aria-label={minimized ? 'Show graph' : 'Minimize graph'} title={minimized ? 'Show graph' : 'Minimize graph'} onClick={onToggle}>{minimized ? '▴' : '▾'}</button>;
   if (minimized) {
     return (
-      <div className="chart" data-testid="trend-min">
-        <div className="chart-head"><span>Flag at {title} <span className="muted">· {points.length} {points.length === 1 ? 'frame' : 'frames'}</span></span>{toggle}</div>
+      <div className="tg-chart" data-testid="trend-min">
+        <div className="tg-chart-head"><span>Flag at {title} <span className="tg-muted">· {points.length} {points.length === 1 ? 'frame' : 'frames'}</span></span>{toggle}</div>
       </div>
     );
   }
   if (points.length < MIN_POINTS) {
     return (
-      <div className="chart" data-testid="trend-hint">
-        <div className="chart-head">
+      <div className="tg-chart" data-testid="trend-hint">
+        <div className="tg-chart-head">
           <span>Flag at {title}</span>
           {toggle}
         </div>
-        <p className="cap muted">{points.length} of {MIN_POINTS} frames collected. Press Play or drag the time slider to build the graph.</p>
+        <p className="tg-cap tg-muted">{points.length} of {MIN_POINTS} frames collected. Press Play or drag the time slider to build the graph.</p>
       </div>
     );
   }
@@ -36,9 +36,9 @@ export default function TrendChart({ title, points, current, fmt, label, minimiz
   const y = (v: number) => (hi === lo ? H / 2 : H - 4 - ((v - lo) / (hi - lo)) * (H - 8));
   const cur = current ? x(Date.parse(current)) : null;
   return (
-    <div className="chart" data-testid="trend">
-      <div className="chart-head">
-        <span>{title} <span className="muted">· dashed = trend</span></span>
+    <div className="tg-chart" data-testid="trend">
+      <div className="tg-chart-head">
+        <span>{title} <span className="tg-muted">· dashed = trend</span></span>
         {toggle}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
@@ -49,7 +49,7 @@ export default function TrendChart({ title, points, current, fmt, label, minimiz
         <polyline fill="none" stroke="#90caf9" strokeWidth={2} vectorEffect="non-scaling-stroke"
           points={points.map((p, i) => `${x(t[i])},${y(p.value)}`).join(' ')} />
       </svg>
-      <div className="chart-foot muted">
+      <div className="tg-chart-foot tg-muted">
         <span>{label(points[0].date)}</span>
         <span data-testid="trend-range">{fmt(lo)} – {fmt(hi)}</span>
         <span>{label(points[points.length - 1].date)}</span>

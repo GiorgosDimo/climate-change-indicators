@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { geotiffToPng } = vi.hoisted(() => ({ geotiffToPng: vi.fn(async () => new Blob(['png'], { type: 'image/png' })) }));
-vi.mock('@/lib/geotiff', () => ({ geotiffToPng }));
-import { decode, loadColormap, loadFrame, parseColormap, registerColormap } from '@/lib/frames';
+vi.mock('../src/lib/geotiff', () => ({ geotiffToPng }));
+import { decode, loadColormap, loadFrame, parseColormap, registerColormap } from '../src/lib/frames';
 
 const XML = `<ColorMaps>
   <ColorMap title="No Data"><Entries><ColorMapEntry rgb="0,0,0" transparent="true" nodata="true"/></Entries></ColorMap>

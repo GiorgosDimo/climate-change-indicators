@@ -1,18 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CATALOG, expandLegend, parseCatalog } from '@/lib/catalog';
-import { loadColormap } from '@/lib/frames';
-import { frameUrl, hasDetail } from '@/lib/indicators';
-import example from '../examples/catalog.example.json';
+import { expandLegend, parseCatalog } from '../src/lib/catalog';
+import { loadColormap } from '../src/lib/frames';
+import { frameUrl, hasDetail } from '../src/lib/indicators';
+import example from '../../../examples/catalog.example.json';
 
 const ind = (over: object = {}) => ({ id: 'a', name: 'A', layer: 'L', colormap: 'CM', start: '2000-01-01', end: '2001-01-01', ...over });
 const cat = (...i: object[]) => ({ title: 'T', indicators: i });
-
-describe('default catalog', () => {
-  it('is the ten GIBS indicators', () => {
-    expect(DEFAULT_CATALOG.indicators).toHaveLength(10);
-    expect(DEFAULT_CATALOG.credit).toMatch(/GIBS/);
-  });
-});
 
 describe('parseCatalog', () => {
   it('accepts the documented example', () => {

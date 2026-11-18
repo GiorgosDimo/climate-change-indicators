@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPoint, linearFit, pointsOf } from '@/lib/series';
+import { addPoint, linearFit, pointsOf } from '../src/lib/series';
 
 describe('series', () => {
   it('keeps one value per frame date and sorts by date', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { INDICATORS, addMonth, fmtDate, fmtFor, frameUrl, framesFor, monthList, variantFor } from '@/lib/indicators';
+import { DEFAULT_CATALOG, INDICATORS, withEnds } from '@/app/gibs';
+import { addMonth, fmtDate, fmtFor, frameUrl, framesFor, monthList, variantFor } from '../packages/timeline-globe/src/lib/indicators';
 
 const get = (id: string) => INDICATORS.find(i => i.id === id)!;
 
@@ -85,3 +86,21 @@ describe('indicator catalog', () => {
     expect(variantFor(get('co2'), 'week')).toBe(get('co2')); // no weekly product → falls back
   });
 });
+
+describe('built-in catalog', () => {
+  it('is the ten GIBS indicators with a title and credit', () => {
+    expect(DEFAULT_CATALOG.indicators).toBe(INDICATORS);
+    expect(DEFAULT_CATALOG.credit).toMatch(/GIBS/);
+  });
+  it('withEnds moves an indicator\'s last month forward and keeps the others as they are', () => {
+    const c = withEnds(DEFAULT_CATALOG, { sst: '2026-09-01' });
+    const sst = c.indicators.find(i => i.id === 'sst')!;
+    expect(sst.end).toBe('2026-09-01');
+    expect(sst.weekly!.end >= '2026-09-01').toBe(true);
+    expect(c.indicators.find(i => i.id === 'ndvi')).toBe(INDICATORS.find(i => i.id === 'ndvi'));
+  });
+  it('is unchanged when nothing new was found', () => {
+    expect(withEnds(DEFAULT_CATALOG, {}).indicators).toEqual(INDICATORS);
+  });
+});
+

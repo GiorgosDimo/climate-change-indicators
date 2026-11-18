@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 
 let n = 0;
 // The real globe needs WebGL; replace it with a stub that exposes what the page tells it.
-vi.mock('next/dynamic', () => ({
-  default: () =>
+vi.mock('../packages/timeline-globe/src/components/GlobeView', () => ({
+  default:
     function GlobeStub(p: {
       src: string | null; colormap: string; north: boolean; alpha: number;
       palette: { id: string; low: string; high: string }; format: (v: number, u: string) => string;
@@ -24,7 +24,7 @@ vi.mock('next/dynamic', () => ({
     },
 }));
 const { findNewEnds } = vi.hoisted(() => ({ findNewEnds: vi.fn(async () => ({}) as Record<string, string>) }));
-vi.mock('@/lib/updates', async orig => ({ ...(await orig<typeof import('@/lib/updates')>()), findNewEnds }));
+vi.mock('@/app/updates', async orig => ({ ...(await orig<typeof import('@/app/updates')>()), findNewEnds }));
 
 import Home from '@/app/page';
 
@@ -198,8 +198,8 @@ describe('flag and value trend graph', () => {
   it('keeps the time-step buttons outside the scrolling menu body, next to the tip', () => {
     render(<Home />);
     const weekly = screen.getByRole('button', { name: 'Weekly' });
-    expect(weekly.closest('.menu-body')).toBeNull();
-    expect(weekly.closest('.menu-pin')!.nextElementSibling).toHaveTextContent(/press Play below/);
+    expect(weekly.closest('.tg-menu-body')).toBeNull();
+    expect(weekly.closest('.tg-menu-pin')!.nextElementSibling).toHaveTextContent(/press Play below/);
   });
 
   it('the Read values button sits with the legend; turning it off removes the flag', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { writeArrayBuffer } from 'geotiff';
-import { colorize, readGeoTiff } from '@/lib/geotiff';
+import { colorize, readGeoTiff } from '../src/lib/geotiff';
 
 // A small float32 lat/lon GeoTIFF. `tie` is the top-left corner, `scale` the pixel size in degrees.
 const tif = (values: number[], width: number, height: number, tie: [number, number], scale: number, extra: object = {}) =>

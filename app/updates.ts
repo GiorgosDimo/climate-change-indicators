@@ -1,5 +1,5 @@
 // Checks for newer data every time the app opens (a web page cannot run in the background).
-import { addMonth, frameUrl, type Indicator, type Variant } from './indicators';
+import { addMonth, frameUrl, type Indicator, type Variant } from 'timeline-globe';
 
 const KEY = 'cig.updates';
 

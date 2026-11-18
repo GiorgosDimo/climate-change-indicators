@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtNum, formatValue } from '@/lib/format';
+import { fmtNum, formatValue } from '../src/lib/format';
 
 describe('formatValue', () => {
   it('shows kelvin as °C with °F in brackets', () => {

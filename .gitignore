@@ -6,3 +6,4 @@ graphify-out
 *.tsbuildinfo
 .env*
 .vercel
+dist

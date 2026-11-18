@@ -4,6 +4,8 @@ An interactive 3D globe that plays georeferenced image data through time. Out of
 
 **Live demo: https://climate-change-indicators.vercel.app/**
 
+The viewer is also published as a reusable React component, [`timeline-globe`](packages/timeline-globe), and this site is a demo built on it. See [Use as a library](#use-as-a-library).
+
 ## Purpose
 
 Climate data is usually scattered across portals with different formats and logins. This app puts ten indicators on one globe so you can play them through time, compare regions and read actual values:
@@ -41,7 +43,7 @@ Each indicator has a description of what it is and how to read it.
 ## Tech stack
 
 - [Next.js 14](https://nextjs.org/) (App Router), React 18, TypeScript
-- [CesiumJS](https://cesium.com/platform/cesiumjs/) 1.122 (loaded from CDN) for the globe, with the bundled Natural Earth II basemap
+- [CesiumJS](https://cesium.com/platform/cesiumjs/) 1.122 for the globe, loaded from its CDN on first use, with the bundled Natural Earth II basemap
 - Plain CSS (no UI library), one small stylesheet
 - [geotiff.js](https://geotiffjs.github.io/) for reading GeoTIFF files (loaded on demand)
 - [Vitest](https://vitest.dev/), jsdom and Testing Library for tests
@@ -54,27 +56,51 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-Other scripts: `npm run build`, `npm start`, `npm test`, `npm run typecheck`.
+Other scripts: `npm run build`, `npm start`, `npm test`, `npm run typecheck`, and `npm run build:lib` (builds the package into `packages/timeline-globe/dist`).
 
 ## Project layout
 
+The repository is an npm workspace: the viewer is a package, and the Next.js app at the root is a demo of it.
+
 ```
-app/page.tsx              page state: indicator, mode, frames, playback, menu
-components/GlobeView.tsx  Cesium globe, layer swap, detail overlay, hover value
-components/TimeDock.tsx   legend, Read values button, time slider, play and speed
-components/TrendChart.tsx line graph of the flagged pixel, with a fitted trend line
-components/RangeSlider.tsx two-thumb period slider
-lib/indicators.ts         the ten built-in indicators, date and frame logic, frame URLs
-lib/catalog.ts            catalog format: checks and loads a catalog JSON file
-lib/geotiff.ts            reads a GeoTIFF and paints it with a legend
-lib/frames.ts             frame cache, colour-map parsing, pixel decoding
-lib/palette.ts            palettes and client-side recolouring
-lib/series.ts             values collected per pixel and the trend-line fit
-lib/format.ts             value formatting (°C / °F, units)
-lib/updates.ts            new-data check
-tests/                    unit and integration tests
-examples/                 example catalog file
+app/                              the demo app
+  page.tsx                          NASA GIBS catalog (or ?catalog=), new-data check
+  gibs.ts                           the ten built-in GIBS indicators
+  updates.ts                        new-data check
+packages/timeline-globe/          the reusable viewer (published as `timeline-globe`)
+  src/TimelineGlobe.tsx             page state: dataset, mode, frames, playback, menu
+  src/components/GlobeView.tsx      Cesium globe, layer swap, detail overlay, hover value, flag
+  src/components/TimeDock.tsx       legend, Read values button, time slider, play and speed
+  src/components/TrendChart.tsx     line graph of the flagged pixel, with a fitted trend line
+  src/components/RangeSlider.tsx    two-thumb period slider
+  src/lib/indicators.ts             dates, frame schedules, frame URLs
+  src/lib/catalog.ts                catalog format: checks and loads a catalog JSON file
+  src/lib/cesium.ts                 loads CesiumJS from the CDN
+  src/lib/frames.ts                 frame cache, colour-map parsing, pixel decoding
+  src/lib/geotiff.ts                reads a GeoTIFF and paints it with a legend
+  src/lib/palette.ts                palettes and client-side recolouring
+  src/lib/series.ts                 values collected per pixel and the trend-line fit
+  src/lib/format.ts                 value formatting (°C / °F, units)
+  src/style.css                     all styles, scoped to .tg
+  tests/                            unit tests of the package
+tests/                            tests of the demo app (GIBS data, new-data check, whole-page behaviour)
+examples/                         example catalog file
 ```
+
+## Use as a library
+
+```bash
+npm install timeline-globe
+```
+
+```tsx
+import { TimelineGlobe, parseCatalog } from 'timeline-globe';
+import 'timeline-globe/style.css';
+
+<TimelineGlobe catalog={parseCatalog(myCatalogJson)} />
+```
+
+See [packages/timeline-globe/README.md](packages/timeline-globe/README.md) for the API, the styling notes and self-hosting Cesium. The package is not published to npm yet; to publish it: `npm run build:lib`, then `npm publish -w timeline-globe`.
 
 ## Using your own data
 

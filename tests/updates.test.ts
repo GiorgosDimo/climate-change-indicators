@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { INDICATORS } from '@/lib/indicators';
-import { findNewEnds, hasData, loadState, saveState } from '@/lib/updates';
+import { INDICATORS } from '@/app/gibs';
+import { findNewEnds, hasData, loadState, saveState } from '@/app/updates';
 
 describe('hasData', () => {
   const px = (alphas: number[]) => alphas.flatMap(a => [1, 2, 3, a]);

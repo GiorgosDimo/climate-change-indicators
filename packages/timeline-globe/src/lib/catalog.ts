@@ -1,11 +1,9 @@
-// A catalog is the list of datasets the app shows. The built-in one is NASA GIBS; any other can be
-// loaded from a JSON file with ?catalog=<url> (see examples/catalog.example.json and the README).
-import { INDICATORS, type Indicator, type Variant } from './indicators';
+// A catalog is the list of datasets the viewer shows. It can be written in code or loaded from a JSON file
+// (see examples/catalog.example.json in the repository).
+import type { Indicator, Variant } from './indicators';
 import { registerColormap, type Bin } from './frames';
 
 export interface Catalog { title: string; credit: string; indicators: Indicator[] }
-
-export const DEFAULT_CATALOG: Catalog = { title: 'Climate Change Indicators', credit: 'Imagery: NASA GIBS', indicators: INDICATORS };
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const HEX = /^#[0-9a-f]{6}$/i;

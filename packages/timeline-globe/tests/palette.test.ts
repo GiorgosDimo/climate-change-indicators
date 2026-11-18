@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Colormap } from '@/lib/frames';
-import { ORIGINAL, colorAt, legendStops, recolorPixels } from '@/lib/palette';
+import type { Colormap } from '../src/lib/frames';
+import { ORIGINAL, colorAt, legendStops, recolorPixels } from '../src/lib/palette';
 
 const cm: Colormap = {
   units: 'x',

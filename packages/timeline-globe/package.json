@@ -1,0 +1,30 @@
+{
+  "name": "timeline-globe",
+  "version": "0.1.0",
+  "description": "A React 3D globe that plays georeferenced image data (WMS, image series, GeoTIFF) through time, with legend, value picker and trend graph.",
+  "keywords": ["globe", "cesium", "geospatial", "timeline", "wms", "geotiff", "react", "visualization"],
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": ["**/*.css"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./style.css": "./dist/style.css"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup && node -e \"require('fs').copyFileSync('src/style.css','dist/style.css')\"",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "dependencies": {
+    "geotiff": "^3.0.5"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0"
+  }
+}
