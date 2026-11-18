@@ -22,6 +22,7 @@ Each indicator has a description of what it is and how to read it.
 
 - **Time controls:** weekly, monthly or yearly frames, a period range slider, play/pause and 1–10 fps speed.
 - **Value picker:** hover or tap anywhere to read the value. It updates with every frame while the coordinates stay fixed. Temperatures show °C with °F in brackets.
+- **Trend graph:** rest the pointer on a spot (a flag marks the exact pixel) and play: once five frames have been seen there, a line graph of that spot's value over time appears and keeps growing. A "Show values" button turns reading off for plain panning.
 - **Legend and colours:** a legend per layer, plus original, Viridis, blue-red, grayscale or custom two-colour palettes, applied in the browser.
 - **Detail on zoom:** zooming in loads a sharper image of the visible region.
 - **Polar tilt** for sea ice, zoom buttons, and a mobile-friendly collapsible menu.
@@ -39,7 +40,7 @@ Each indicator has a description of what it is and how to read it.
 
 - [Next.js 14](https://nextjs.org/) (App Router), React 18, TypeScript
 - [CesiumJS](https://cesium.com/platform/cesiumjs/) 1.122 (loaded from CDN) for the globe, with the bundled Natural Earth II basemap
-- [MUI](https://mui.com/) with a dark theme
+- Plain CSS (no UI library), one small stylesheet
 - [Vitest](https://vitest.dev/), jsdom and Testing Library for tests
 - Data and imagery: [NASA GIBS](https://earthdata.nasa.gov/gibs)
 

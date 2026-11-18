@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Box, Fab } from '@mui/material';
 import { decode, loadColormap, loadFrame, type Colormap } from '@/lib/frames';
 import { recolorBitmap, type Palette } from '@/lib/palette';
 import type { BBox } from '@/lib/indicators';
@@ -14,7 +13,12 @@ declare global {
   }
 }
 
-export interface Hover { x: number; y: number; lat: number; lon: number; value: string }
+export interface Hover {
+  x: number; y: number; lat: number; lon: number; value: string;
+  num: number | null;        // the value as a number (null = no data)
+  cell: [number, number];    // centre of the image pixel that was read: the exact spot shown by the flag
+  src: string;               // URL of the frame the value comes from
+}
 
 interface Props {
   src: string | null;      // whole-globe image URL of the current frame
@@ -25,6 +29,9 @@ interface Props {
   palette: Palette;
   north: boolean;          // tilt to the north pole
   onHover: (h: Hover | null) => void;
+  values: boolean;         // read values on hover/tap (off: plain panning)
+  onValues: (on: boolean) => void;
+  marker: [number, number] | null; // lat, lon of the flag
 }
 
 const MIN_DIST = 3e6;        // ~tile level 4: closest zoom
@@ -32,7 +39,7 @@ const MAX_DIST = 4e7;
 const DETAIL_BELOW = 9e6;    // fetch a sharper image of the visible area below this camera height
 const FADE = 0.01;           // not 0: Cesium skips layers at alpha 0, so they would never load
 
-export default function GlobeView({ src, detailUrl, colormap, format, alpha, palette, north, onHover }: Props) {
+export default function GlobeView({ src, detailUrl, colormap, format, alpha, palette, north, onHover, values, onValues, marker }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const viewer = useRef<any>(null);
@@ -41,12 +48,15 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const detail = useRef<any>(null);
   const bmp = useRef<ImageBitmap | null>(null);
+  const bmpSrc = useRef('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flag = useRef<any>(null);
   const cmap = useRef<Colormap | null>(null);
   const flying = useRef(false);
   const lastPick = useRef<{ x: number; y: number; lat: number; lon: number } | null>(null);
   const cmName = useRef(''), bmpCmName = useRef(''); // legend the loaded colormap / current image belong to
-  const latest = useRef({ alpha, format, detailUrl, onHover, palette, colormap });
-  latest.current = { alpha, format, detailUrl, onHover, palette, colormap };
+  const latest = useRef({ alpha, format, detailUrl, onHover, palette, colormap, values });
+  latest.current = { alpha, format, detailUrl, onHover, palette, colormap, values };
   const paletteKey = `${palette.id}${palette.low}${palette.high}`;
   const api = useRef({
     scheduleDetail: () => {}, clearDetail: () => {}, settle: async () => {},
@@ -155,10 +165,14 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
       ctx.drawImage(b, px, py, 1, 1, 0, 0, 1, 1);
       const [r, g, bl, a] = ctx.getImageData(0, 0, 1, 1).data;
       const val = a < 128 ? null : decode(cm, r, g, bl);
-      latest.current.onHover({ ...at, value: val === null ? 'No data' : latest.current.format(val, cm.units) });
+      latest.current.onHover({
+        ...at, value: val === null ? 'No data' : latest.current.format(val, cm.units), num: val, src: bmpSrc.current,
+        cell: [90 - ((py + 0.5) / b.height) * 180, -180 + ((px + 0.5) / b.width) * 360],
+      });
     };
     // Hover on desktop, tap on touch screens.
     const pick = (pos: { x: number; y: number }) => {
+      if (!latest.current.values) return;
       const p = v.camera.pickEllipsoid(pos, v.scene.globe.ellipsoid);
       if (!p) { lastPick.current = null; return latest.current.onHover(null); }
       const c = C.Cartographic.fromCartesian(p);
@@ -169,7 +183,7 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     h.setInputAction((m: { endPosition: { x: number; y: number } }) => pick(m.endPosition), C.ScreenSpaceEventType.MOUSE_MOVE);
     h.setInputAction((m: { position: { x: number; y: number } }) => pick(m.position), C.ScreenSpaceEventType.LEFT_CLICK);
 
-    return () => { clearTimeout(timer); v.destroy(); viewer.current = null; layer.current = null; detail.current = null; };
+    return () => { clearTimeout(timer); v.destroy(); viewer.current = null; layer.current = null; detail.current = null; flag.current = null; };
   }, []);
 
   // New frame: add the new layer faded out, wait until it has rendered, then swap in one step.
@@ -194,6 +208,7 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
       layer.current = next;
       bmp.current?.close();
       bmp.current = b;
+      bmpSrc.current = src;
       bmpCmName.current = latest.current.colormap;
       api.current.refresh();
       v.scene.requestRender();
@@ -219,6 +234,23 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   }, [colormap]);
 
   useEffect(() => {
+    if (!values) { lastPick.current = null; onHover(null); }
+  }, [values, onHover]);
+
+  // Flag on the pixel being read.
+  useEffect(() => {
+    const v = viewer.current, C = window.Cesium;
+    if (!v || v.isDestroyed()) return;
+    if (!marker) { if (flag.current) flag.current.show = false; } else {
+      const position = C.Cartesian3.fromDegrees(marker[1], marker[0]);
+      if (flag.current) { flag.current.position = position; flag.current.show = true; } else {
+        flag.current = v.entities.add({ position, billboard: { image: flagIcon(), verticalOrigin: C.VerticalOrigin.BOTTOM } });
+      }
+    }
+    v.scene.requestRender();
+  }, [marker?.[0], marker?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     const v = viewer.current, C = window.Cesium;
     if (!v) return;
     v.camera.flyTo({
@@ -240,14 +272,28 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   };
 
   return (
-    <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div ref={boxRef} style={{ width: '100%', height: '100%' }} onMouseLeave={() => { lastPick.current = null; onHover(null); }} />
-      <Box sx={{ position: 'absolute', right: 16, bottom: { xs: 190, md: 32 }, display: 'flex', flexDirection: 'column', gap: 1, zIndex: 1000 }}>
-        <Fab size="small" aria-label="Zoom in" onClick={() => zoom(0.6)} sx={{ fontSize: 22 }}>+</Fab>
-        <Fab size="small" aria-label="Zoom out" onClick={() => zoom(1 / 0.6)} sx={{ fontSize: 22 }}>−</Fab>
-      </Box>
-    </Box>
+    <div className="globe">
+      <div ref={boxRef} className={`globe-view${values ? '' : ' grab'}`} onMouseLeave={() => { lastPick.current = null; onHover(null); }} />
+      <div className="tools">
+        <button className="fab" aria-label="Show values" aria-pressed={values} title="Show values on hover or tap" onClick={() => onValues(!values)}>
+          <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm-1-6v3.1A7 7 0 005.1 11H2v2h3.1A7 7 0 0011 18.9V22h2v-3.1a7 7 0 005.9-5.9H22v-2h-3.1A7 7 0 0013 5.1V2h-2zm1 5a5 5 0 110 10 5 5 0 010-10z" /></svg>
+        </button>
+        <button className="fab" aria-label="Zoom in" onClick={() => zoom(0.6)}>+</button>
+        <button className="fab" aria-label="Zoom out" onClick={() => zoom(1 / 0.6)}>−</button>
+      </div>
+    </div>
   );
+}
+
+/** Small red flag; the pole's foot is the bottom-centre of the image. */
+function flagIcon() {
+  const c = document.createElement('canvas');
+  c.width = 28; c.height = 36;
+  const g = c.getContext('2d')!;
+  g.lineWidth = 3; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(14, 4); g.lineTo(14, 35); g.stroke();
+  g.fillStyle = '#e53935'; g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(15, 3); g.lineTo(27, 9); g.lineTo(15, 16); g.closePath(); g.fill(); g.stroke();
+  return c;
 }
 
 const deg180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;

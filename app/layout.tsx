@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
-import { AppRouterCacheProvider } from '@mui/material-nextjs/v14-appRouter';
+import './globals.css';
 
 export const metadata: Metadata = { title: 'Climate Change Indicators' };
 
@@ -13,8 +13,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="stylesheet" href={`${CESIUM_CDN}/Widgets/widgets.css`} />
       </head>
-      <body style={{ margin: 0, padding: 0, overflow: 'hidden', background: '#000' }}>
-        <AppRouterCacheProvider>{children}</AppRouterCacheProvider>
+      <body>
+        {children}
         {/* Cesium loaded from CDN to avoid webpack asset-copy complexity */}
         <Script src={`${CESIUM_CDN}/Cesium.js`} strategy="beforeInteractive" />
       </body>

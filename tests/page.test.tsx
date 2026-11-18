@@ -1,17 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+let n = 0;
 // The real globe needs WebGL; replace it with a stub that exposes what the page tells it.
 vi.mock('next/dynamic', () => ({
   default: () =>
     function GlobeStub(p: {
       src: string | null; colormap: string; north: boolean; alpha: number;
       palette: { id: string; low: string; high: string }; format: (v: number, u: string) => string;
+      values: boolean; onValues: (b: boolean) => void; marker: number[] | null; onHover: (h: unknown) => void;
     }) {
+      // Stand-in for hovering the fixed spot 10.25°, 20.25°: reports a new value for the frame being shown.
       return (
         <div data-testid="globe" data-src={p.src ?? ''} data-colormap={p.colormap} data-north={String(p.north)}
-          data-temp={p.format(300.15, 'K')} data-palette={p.palette.id} data-low={p.palette.low} />
+          data-temp={p.format(300.15, 'K')} data-palette={p.palette.id} data-low={p.palette.low}
+          data-values={String(p.values)} data-marker={p.marker?.join(',') ?? ''}>
+          <button onClick={() => p.onHover({ x: 5, y: 5, lat: 10.2, lon: 20.2, value: 'v', num: 270 + n++, cell: [10.25, 20.25], src: p.src })}>hover</button>
+          <button onClick={() => p.onValues(!p.values)}>Show values</button>
+        </div>
       );
     },
 }));
@@ -25,6 +32,7 @@ const CMAP_XML = `<ColorMaps><ColorMap units="K">
   <ColorMapEntry rgb="255,0,0" transparent="false" value="[310,320)"/></ColorMap></ColorMaps>`;
 
 beforeEach(() => {
+  n = 0;
   localStorage.clear();
   findNewEnds.mockClear();
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
@@ -32,12 +40,11 @@ beforeEach(() => {
     url.includes('/colormaps/') ? new Response(CMAP_XML) : new Response('x', { headers: { 'content-type': 'image/png' } })));
 });
 
-const choose = async (user: ReturnType<typeof userEvent.setup>, combo: RegExp | number, option: RegExp) => {
-  const boxes = screen.getAllByRole('combobox');
-  await user.click(typeof combo === 'number' ? boxes[combo] : screen.getByRole('combobox', { name: combo }));
-  await user.click(await screen.findByRole('option', { name: option }));
+const choose = async (user: ReturnType<typeof userEvent.setup>, combo: RegExp, option: RegExp) => {
+  const box = screen.getByRole('combobox', { name: combo });
+  await user.selectOptions(box, within(box).getByRole('option', { name: option }));
 };
-const frames = () => Number(screen.getByRole('slider', { name: 'Frame' }).getAttribute('aria-valuemax'));
+const frames = () => Number(screen.getByRole('slider', { name: 'Frame' }).getAttribute('max'));
 
 describe('title, description, menu', () => {
   it('shows the title, the first indicator and its description, menu open by default', () => {
@@ -151,6 +158,45 @@ describe('time dock', () => {
     render(<Home />);
     await user.click(screen.getByRole('button', { name: 'Play' }));
     expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+  });
+});
+
+describe('value trend graph', () => {
+  const hoverFrame = async (user: ReturnType<typeof userEvent.setup>, frame: number) => {
+    fireEvent.change(screen.getByRole('slider', { name: 'Frame' }), { target: { value: String(frame) } });
+    await user.click(screen.getByRole('button', { name: 'hover' }));
+  };
+
+  it('marks the pixel with a flag, then draws a graph once five frames were seen there', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(screen.getByRole('button', { name: 'hover' }));
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-marker', '10.25,20.25');
+    expect(screen.queryByTestId('trend')).toBeNull();
+    // resting on the pixel is what starts collecting (first value arrives after the rest delay)
+    await new Promise(r => setTimeout(r, 600));
+    for (const f of [1, 2, 3, 4]) await hoverFrame(user, f);
+    expect(await screen.findByTestId('trend')).toHaveTextContent('10.25°, 20.25°');
+  });
+
+  it('can be dismissed', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(screen.getByRole('button', { name: 'hover' }));
+    await new Promise(r => setTimeout(r, 600));
+    for (const f of [1, 2, 3, 4]) await hoverFrame(user, f);
+    await user.click(await screen.findByRole('button', { name: 'Close graph' }));
+    expect(screen.queryByTestId('trend')).toBeNull();
+  });
+
+  it('the Show values toggle turns reading off (hand cursor, no flag)', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-values', 'true');
+    await user.click(screen.getByRole('button', { name: 'hover' }));
+    await user.click(screen.getByRole('button', { name: 'Show values' }));
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-values', 'false');
+    expect(screen.getByTestId('globe')).toHaveAttribute('data-marker', '');
   });
 });
 
