@@ -99,11 +99,12 @@ export default function TimelineGlobe({ catalog, cesiumUrl, className, style }: 
   }, [open]);
 
   // Every frame shown at the flagged pixel adds one point; the graph grows as frames play or are scrubbed.
-  const seriesKey = `${variant.layer}|${m}`;
+  // Same layer = same values, so switching between weekly/monthly/yearly of one layer keeps the points.
+  const seriesKey = variant.layer;
   useEffect(() => {
     const date = sample && dates[urls.indexOf(sample.src)];
     if (!sample || sample.num === null || !date) return;
-    setData(d => ({ key: seriesKey, pts: addPoint(d.key === seriesKey ? d.pts : {}, sample.cell, date, sample.num!) }));
+    setData(d => ({ key: seriesKey, pts: addPoint(d.key === seriesKey ? d.pts : {}, sample.pin.join(','), date, sample.num!) }));
   }, [sample]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setPalette = (p: Partial<Palette>) => setPalettes(s => ({ ...s, [ind.id]: { ...palette, ...p } }));

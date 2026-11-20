@@ -10,7 +10,7 @@ vi.mock('../packages/timeline-globe/src/components/GlobeView', () => ({
       src: string | null; colormap: string; north: boolean; alpha: number;
       palette: { id: string; low: string; high: string }; format: (v: number, u: string) => string;
       values: boolean; pin: number[] | null; onPick: (c: [number, number]) => void;
-      onSample: (s: { num: number | null; src: string; cell: string }) => void;
+      onSample: (s: { num: number | null; src: string; pin: [number, number] }) => void;
     }) {
       // Stand-ins for clicking the globe at 10.25°, 20.25° and for the globe reporting that pixel's value per frame.
       return (
@@ -18,7 +18,7 @@ vi.mock('../packages/timeline-globe/src/components/GlobeView', () => ({
           data-temp={p.format(300.15, 'K')} data-palette={p.palette.id} data-low={p.palette.low}
           data-values={String(p.values)} data-pin={p.pin?.join(',') ?? ''}>
           <button onClick={() => p.onPick([10.25, 20.25])}>click globe</button>
-          <button onClick={() => p.onSample({ num: 270 + n++, src: p.src ?? '', cell: '10.25,20.25' })}>new frame value</button>
+          <button onClick={() => p.onSample({ num: 270 + n++, src: p.src ?? '', pin: [10.25, 20.25] })}>new frame value</button>
         </div>
       );
     },
@@ -180,6 +180,20 @@ describe('flag and value trend graph', () => {
     for (const i of [3, 4]) await frame(user, i);
     expect(screen.getByTestId('trend')).toHaveTextContent('10.25°, 20.25°');
     expect(screen.queryByTestId('trend-hint')).toBeNull();
+  });
+
+  it('keeps the points when switching between monthly and yearly (same layer) and starts over for another layer', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(screen.getByRole('button', { name: 'click globe' }));
+    for (const i of [0, 1, 2]) await frame(user, i);
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('3 of 5');
+    await user.click(screen.getByRole('button', { name: 'Yearly' }));
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('3 of 5');
+    await choose(user, /Climate indicator/, /Sea surface temperature/);
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('0 of 5');
+    await user.click(screen.getByRole('button', { name: 'new frame value' }));
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('1 of 5'); // the flag is still there and collects again
   });
 
   it('minimizing keeps the flag and collecting, and the graph can be shown again', async () => {

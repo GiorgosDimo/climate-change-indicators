@@ -8,7 +8,7 @@ import { loadCesium } from '../lib/cesium';
 
 export interface Hover { x: number; y: number; lat: number; lon: number; value: string }
 /** Value of the flagged pixel in one frame. */
-export interface Sample { num: number | null; src: string; cell: string }
+export interface Sample { num: number | null; src: string; pin: [number, number] }
 
 interface Props {
   src: string | null;      // whole-globe image URL of the current frame
@@ -68,9 +68,11 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
       const v = new C.Viewer(el, {
         baseLayer: false, baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false,
         navigationHelpButton: false, animation: false, timeline: false, fullscreenButton: false,
+        selectionIndicator: false, infoBox: false,
         requestRenderMode: true, maximumRenderTimeChange: Infinity,
       });
       viewer.current = v;
+      v.screenSpaceEventHandler.removeInputAction(C.ScreenSpaceEventType.LEFT_DOUBLE_CLICK); // Cesium's default: track the entity
       // flyTo tweens don't wake a requestRenderMode scene by themselves
       v.clock.onTick.addEventListener(() => { if (flying.current) v.scene.requestRender(); });
       v.scene.screenSpaceCameraController.minimumZoomDistance = MIN_DIST;
@@ -172,7 +174,14 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
       // The flagged pixel is sampled on every new frame, whatever the pointer is doing.
       const samplePin = () => {
         const pin = latest.current.pin, v = pin && read(pin[0], pin[1]);
-        if (v) latest.current.onSample({ num: v.num, src: bmpSrc.current, cell: v.cell.join(',') });
+        if (!pin || !v) return;
+        if (flag.current) { // the value stays in a label next to the flag
+          const value = v.num === null ? 'No data' : latest.current.format(v.num, v.units);
+          flag.current.label.text = `${value}\n${pin[0].toFixed(2)}°, ${pin[1].toFixed(2)}°`;
+          viewer.current?.scene.requestRender();
+        }
+        // keyed by the flag itself: the pixel grid differs between layers, the flag does not
+        latest.current.onSample({ num: v.num, src: bmpSrc.current, pin: [pin[0], pin[1]] });
       };
       api.current.refresh = () => { if (lastPick.current) emit(lastPick.current); samplePin(); };
       api.current.snap = (lat: number, lon: number) => read(lat, lon)?.cell ?? [lat, lon];
@@ -258,7 +267,15 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     if (!pin) { if (flag.current) flag.current.show = false; } else {
       const position = C.Cartesian3.fromDegrees(pin[1], pin[0]);
       if (flag.current) { flag.current.position = position; flag.current.show = true; } else {
-        flag.current = v.entities.add({ position, billboard: { image: FLAG, width: 34, height: 44, verticalOrigin: C.VerticalOrigin.BOTTOM } });
+        flag.current = v.entities.add({
+          position,
+          billboard: { image: FLAG, width: 34, height: 44, verticalOrigin: C.VerticalOrigin.BOTTOM },
+          label: {
+            text: '', font: '600 14px Roboto, system-ui, sans-serif', showBackground: true,
+            backgroundColor: C.Color.fromCssColorString('#1e1e1e').withAlpha(0.95), backgroundPadding: new C.Cartesian2(8, 5),
+            horizontalOrigin: C.HorizontalOrigin.LEFT, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(22, -26),
+          },
+        });
       }
       api.current.refresh();
     }
