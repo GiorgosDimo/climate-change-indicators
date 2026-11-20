@@ -182,14 +182,18 @@ describe('flag and value trend graph', () => {
     expect(screen.queryByTestId('trend-hint')).toBeNull();
   });
 
-  it('keeps the points when switching between monthly and yearly (same layer) and starts over for another layer', async () => {
+  it('weekly, monthly and yearly each get their own graph; a new layer starts over too', async () => {
     const user = userEvent.setup();
     render(<Home />);
     await user.click(screen.getByRole('button', { name: 'click globe' }));
     for (const i of [0, 1, 2]) await frame(user, i);
     expect(screen.getByTestId('trend-hint')).toHaveTextContent('3 of 5');
     await user.click(screen.getByRole('button', { name: 'Yearly' }));
-    expect(screen.getByTestId('trend-hint')).toHaveTextContent('3 of 5');
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('0 of 5'); // no monthly points mixed into the yearly graph
+    await user.click(screen.getByRole('button', { name: 'new frame value' }));
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('1 of 5');
+    await user.click(screen.getByRole('button', { name: 'Monthly' }));
+    expect(screen.getByTestId('trend-hint')).toHaveTextContent('0 of 5');
     await choose(user, /Climate indicator/, /Sea surface temperature/);
     expect(screen.getByTestId('trend-hint')).toHaveTextContent('0 of 5');
     await user.click(screen.getByRole('button', { name: 'new frame value' }));
@@ -227,6 +231,37 @@ describe('flag and value trend graph', () => {
     expect(btn).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('globe')).toHaveAttribute('data-values', 'false');
     expect(screen.getByTestId('globe')).toHaveAttribute('data-pin', '');
+  });
+});
+
+describe('menu collapses when you tap outside', () => {
+  const width = (w: number) => vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(w);
+  afterEach(() => vi.restoreAllMocks());
+
+  it('on a phone-width viewer, every time (even when the menu is short)', async () => {
+    width(390);
+    const user = userEvent.setup();
+    render(<Home />);
+    for (let i = 0; i < 2; i++) {
+      expect(screen.getByText(/How to read it/)).toBeInTheDocument();
+      fireEvent.pointerDown(screen.getByTestId('globe'));
+      expect(screen.queryByText(/How to read it/)).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Toggle menu' }));
+    }
+  });
+
+  it('taps inside the menu do not collapse it', () => {
+    width(390);
+    render(<Home />);
+    fireEvent.pointerDown(screen.getByText(/How to read it/));
+    expect(screen.getByText(/How to read it/)).toBeInTheDocument();
+  });
+
+  it('on a wide viewer a short menu stays open', () => {
+    width(1280); // jsdom has no layout, so the menu is 0px tall
+    render(<Home />);
+    fireEvent.pointerDown(screen.getByTestId('globe'));
+    expect(screen.getByText(/How to read it/)).toBeInTheDocument();
   });
 });
 

@@ -87,20 +87,21 @@ export default function TimelineGlobe({ catalog, cesiumUrl, className, style }: 
     return () => { dead = true; clearTimeout(t); };
   }, [playing, safe, fps, urls]);
 
-  // A menu taller than half the viewer hides the globe: tapping anywhere outside it collapses it.
+  // A menu that hides much of the globe (always, on a phone-width viewer) collapses when you tap anywhere outside it.
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => {
       const el = menuRef.current, root = rootRef.current;
-      if (el && root && el.offsetHeight > root.clientHeight / 2 && !el.contains(e.target as Node)) setOpen(false);
+      const covers = !!root && (root.clientWidth < 600 && root.clientWidth > 0 || (el?.offsetHeight ?? 0) > root.clientHeight * 0.4);
+      if (el && covers && !el.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('pointerdown', away);
     return () => document.removeEventListener('pointerdown', away);
   }, [open]);
 
   // Every frame shown at the flagged pixel adds one point; the graph grows as frames play or are scrubbed.
-  // Same layer = same values, so switching between weekly/monthly/yearly of one layer keeps the points.
-  const seriesKey = variant.layer;
+  // Weekly, monthly and yearly are separate series (their frames differ), so switching starts a new graph.
+  const seriesKey = `${variant.layer}|${m}`;
   useEffect(() => {
     const date = sample && dates[urls.indexOf(sample.src)];
     if (!sample || sample.num === null || !date) return;
@@ -125,7 +126,7 @@ export default function TimelineGlobe({ catalog, cesiumUrl, className, style }: 
     <div ref={rootRef} className={['tg', pin && !minimized && 'tg-with-chart', className].filter(Boolean).join(' ')} style={style}>
       <GlobeView src={urls[safe] ?? null} detailUrl={detailUrl} colormap={variant.colormap} format={format}
         alpha={ind.alpha} palette={palette} north={!!ind.north} onHover={setHover}
-        values={values} pin={pin} onPick={setPin} onSample={setSample} cesiumUrl={cesiumUrl} />
+        values={values} pin={pin} onPick={setPin} onSample={setSample} sampleKey={seriesKey} cesiumUrl={cesiumUrl} />
 
       {hover && (
         <div className="tg-panel tg-tip" style={{ left: tipLeft, top: hover.y + 14 }}>

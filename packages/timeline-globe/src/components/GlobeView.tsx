@@ -23,6 +23,7 @@ interface Props {
   pin: [number, number] | null; // flagged pixel centre (lat, lon)
   onPick: (cell: [number, number]) => void; // click or tap: plant the flag
   onSample: (s: Sample) => void; // flagged pixel's value, once per new frame
+  sampleKey: string;       // when this changes (a new series starts) the flagged pixel is read again from the frame on screen
   cesiumUrl?: string;      // where to load CesiumJS from (default: the CDN)
 }
 
@@ -31,8 +32,10 @@ const MAX_DIST = 4e7;
 const DETAIL_BELOW = 9e6;    // fetch a sharper image of the visible area below this camera height
 const FADE = 0.01;           // not 0: Cesium skips layers at alpha 0, so they would never load
 
-export default function GlobeView({ src, detailUrl, colormap, format, alpha, palette, north, onHover, values, pin, onPick, onSample, cesiumUrl }: Props) {
+export default function GlobeView({ src, detailUrl, colormap, format, alpha, palette, north, onHover, values, pin, onPick, onSample, sampleKey, cesiumUrl }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [flagInfo, setFlagInfo] = useState<{ value: string; coords: string } | null>(null); // text beside the flag
   const [ready, setReady] = useState(false); // the Cesium viewer exists
   const [error, setError] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +58,7 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
   const api = useRef({
     scheduleDetail: () => {}, clearDetail: () => {}, settle: async () => {},
     display: async (f: { url: string; blob: Blob }) => f.url,
-    refresh: () => {}, snap: (lat: number, lon: number): [number, number] => [lat, lon],
+    refresh: () => {}, placeTip: () => {}, snap: (lat: number, lon: number): [number, number] => [lat, lon],
   });
 
   useEffect(() => {
@@ -175,15 +178,24 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
       const samplePin = () => {
         const pin = latest.current.pin, v = pin && read(pin[0], pin[1]);
         if (!pin || !v) return;
-        if (flag.current) { // the value stays in a label next to the flag
-          const value = v.num === null ? 'No data' : latest.current.format(v.num, v.units);
-          flag.current.label.text = `${value}\n${pin[0].toFixed(2)}°, ${pin[1].toFixed(2)}°`;
-          viewer.current?.scene.requestRender();
-        }
+        const value = v.num === null ? 'No data' : latest.current.format(v.num, v.units), coords = `${pin[0].toFixed(2)}°, ${pin[1].toFixed(2)}°`;
+        setFlagInfo(f => (f?.value === value && f.coords === coords ? f : { value, coords }));
         // keyed by the flag itself: the pixel grid differs between layers, the flag does not
         latest.current.onSample({ num: v.num, src: bmpSrc.current, pin: [pin[0], pin[1]] });
       };
       api.current.refresh = () => { if (lastPick.current) emit(lastPick.current); samplePin(); };
+      // The value box beside the flag is plain HTML (a Cesium label is drawn at low resolution on phones);
+      // it is moved to the flag's screen position whenever the globe is redrawn.
+      api.current.placeTip = () => {
+        const el = tipRef.current, pin = latest.current.pin;
+        if (!el || !pin) return;
+        const at = C.Cartesian3.fromDegrees(pin[1], pin[0]);
+        const win = C.SceneTransforms.worldToWindowCoordinates(v.scene, at);
+        const visible = win && new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, v.camera.positionWC).isPointVisible(at);
+        el.style.display = visible ? '' : 'none';
+        if (visible) el.style.transform = `translate(${win.x + 22}px, ${win.y - 26 - el.offsetHeight}px)`;
+      };
+      v.scene.postRender.addEventListener(() => api.current.placeTip());
       api.current.snap = (lat: number, lon: number) => read(lat, lon)?.cell ?? [lat, lon];
       // Hover on desktop, tap on touch screens.
       const pick = (pos: { x: number; y: number }) => {
@@ -199,7 +211,10 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
       h.setInputAction((m: { position: { x: number; y: number } }) => {
         pick(m.position);
         const at = lastPick.current;
-        if (at && latest.current.values) latest.current.onPick(api.current.snap(at.lat, at.lon));
+        if (at && latest.current.values) {
+          latest.current.onPick(api.current.snap(at.lat, at.lon));
+          lastPick.current = null; latest.current.onHover(null); // the flag's own value box takes over from the hover tooltip
+        }
       }, C.ScreenSpaceEventType.LEFT_CLICK);
 
       return () => { clearTimeout(timer); v.destroy(); viewer.current = null; layer.current = null; detail.current = null; flag.current = null; };
@@ -260,6 +275,14 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     if (!values) { lastPick.current = null; onHover(null); }
   }, [values, onHover]);
 
+  // A new series (another layer or time step) reads the flagged pixel again, so the frame on screen counts as its first point.
+  useEffect(() => { api.current.refresh(); }, [sampleKey]);
+
+  useEffect(() => {
+    if (!pin) setFlagInfo(null);
+    api.current.placeTip();
+  }, [flagInfo, pin?.[0], pin?.[1], ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Flag on the pixel being read; sample it right away so a paused frame already counts.
   useEffect(() => {
     const v = viewer.current, C = window.Cesium;
@@ -270,11 +293,6 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
         flag.current = v.entities.add({
           position,
           billboard: { image: FLAG, width: 34, height: 44, verticalOrigin: C.VerticalOrigin.BOTTOM },
-          label: {
-            text: '', font: '600 14px Roboto, system-ui, sans-serif', showBackground: true,
-            backgroundColor: C.Color.fromCssColorString('#1e1e1e').withAlpha(0.95), backgroundPadding: new C.Cartesian2(8, 5),
-            horizontalOrigin: C.HorizontalOrigin.LEFT, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(22, -26),
-          },
         });
       }
       api.current.refresh();
@@ -307,6 +325,12 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     <div className="tg-globe">
       {error && <p className="tg-err" style={{ position: 'absolute', margin: 16 }}>{error}</p>}
       <div ref={boxRef} className={`tg-globe-view${values ? '' : ' tg-grab'}`} onMouseLeave={() => { lastPick.current = null; onHover(null); }} />
+      {pin && flagInfo && (
+        <div ref={tipRef} className="tg-panel tg-tip tg-flagtip" style={{ display: 'none' }}>
+          <b>{flagInfo.value}</b>
+          <span className="tg-cap tg-muted">{flagInfo.coords}</span>
+        </div>
+      )}
       <div className="tg-tools">
         <button className="tg-fab" aria-label="Zoom in" onClick={() => zoom(0.6)}>+</button>
         <button className="tg-fab" aria-label="Zoom out" onClick={() => zoom(1 / 0.6)}>−</button>
