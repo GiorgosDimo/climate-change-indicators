@@ -137,6 +137,10 @@ Frames are requested for the 1st of each month (or every `everyDays` days), so i
 
 It is a static-friendly Next.js app with no environment variables. Import the repository in [Vercel](https://vercel.com/new) and deploy with the defaults.
 
+## License
+
+The code is released under the [MIT License](LICENSE). The data and imagery it shows come from NASA GIBS and the underlying mission teams (see below), and are not covered by this license.
+
 ## Data credit
 
 Imagery and data courtesy of NASA GIBS / Earthdata and the underlying mission teams (AIRS, MODIS, MUR SST, GHRSST, GRACE, IMERG and others). Check each layer's terms on the GIBS site before reuse.

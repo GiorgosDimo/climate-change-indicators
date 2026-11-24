@@ -313,12 +313,21 @@ export default function GlobeView({ src, detailUrl, colormap, format, alpha, pal
     flying.current = true;
   }, [north, ready]);
 
+  // Glide to the new height (zoomIn/zoomOut would jump there in one frame).
   const zoom = (factor: number) => {
-    const v = viewer.current;
+    const v = viewer.current, C = window.Cesium;
     if (!v) return;
-    const h = v.camera.positionCartographic.height;
+    const cam = v.camera, h = cam.positionCartographic.height;
     const t = Math.min(MAX_DIST, Math.max(MIN_DIST, h * factor));
-    if (t < h) v.camera.zoomIn(h - t); else v.camera.zoomOut(t - h);
+    if (t === h) return;
+    cam.flyTo({
+      destination: C.Cartesian3.add(cam.position, C.Cartesian3.multiplyByScalar(cam.direction, h - t, new C.Cartesian3()), new C.Cartesian3()),
+      orientation: { heading: cam.heading, pitch: cam.pitch, roll: cam.roll },
+      duration: 0.45, easingFunction: C.EasingFunction.QUADRATIC_OUT,
+      complete: () => { flying.current = false; },
+      cancel: () => { flying.current = false; },
+    });
+    flying.current = true; // after flyTo: starting a flight cancels the previous one, which resets the flag
   };
 
   return (

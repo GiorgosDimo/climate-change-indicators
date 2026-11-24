@@ -7,3 +7,8 @@ graphify-out
 .env*
 .vercel
 dist
+demo-video/raw
+demo-video/*.webm
+demo-video/*.mp4
+demo-video/*.png
+demo-video/frames
